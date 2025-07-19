@@ -1,14 +1,14 @@
 
 ## Workflow
 
-First I need to determine the Main Idea of making this dataset
+First I need to determine the Main Idea of making this dataset or dataset creation tool
 
 Things like:
 - What do I want to achieve
 - Structure of the dataset. Like if there are any subgroups or is it all like one thing or are there like iterative subgroups
 - What Format? Instructions? Conversations? Way of speech? Or smth else
 
-For teach:
+For t.e.a.c.h.:
 
 3 Subjects: Math, Englisch, History
     ⌞4 Classes each: 6;8;10;12 
