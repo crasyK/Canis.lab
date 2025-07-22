@@ -1,0 +1,19 @@
+{
+    "header": {
+        "prompt": "Lorem {ai-role} Ipsum {1} dolere {2} sit {3} {4} amet",
+        "ai-role": "Role of the AI",
+        "user-role": "Role of the User",
+        "turns": "How many turns to generate",
+        "conversations": "Number of conversations to generate"
+    },
+    "inserts":
+    {
+        "1":{
+            "branch": ["A","B"],
+            "leaves": [["Aa", "Ab", "Ac"], ["Ba", "Bb", "Bc"]]
+        },
+        "2": ["user", "client", "participant"],
+        "3": ["AI", "assistant", "bot"],
+        "4": ["and", "so", "on"]
+    }
+}
