@@ -1,16 +1,18 @@
 {
     "variables": {
-         "subject":{
-            "branch": ["elementary", "middle_school", "highschool"],
-            "leaves": [["fractions", "place_value", "basic_operations", "shapes"],["pre_algebra", "ratios", "basic_geometry", "probability"], ["algebra", "trigonometry", "calculus", "statistics"]]
+        "subject":{
+            "elementary": ["fractions", "place_value", "basic_operations", "shapes"],
+            "middle_school": ["pre_algebra", "ratios", "basic_geometry", "probability"],
+            "highschool": ["algebra", "trigonometry", "calculus", "statistics"]
         },
         "teaching-techniques": ["Scaffolding","Socratic Questioning", "Constructive Feedback", "Differentiated Instruction"]
     },
     "constants": {
         "prompt": "Generate {conversations} different dialogues of {turns} turns, between {ai-role} and a {user-role} with these SPECIFIC requirements: {instructions}",
-        "instructions": "I want you to use {teaching-techniques} to help the student understand {subject.leaves} in the context of {subject.branch}. Include about 30% wrong answers from the student. DO NOT REVEAL THE ANSWER!",
+        "instructions": "I want you to use {teaching-techniques} to help the student understand {subject_value} in the context of {subject_key}. Include about 30% wrong answers from the student. DO NOT REVEAL THE ANSWER!",
         "ai-role": "expert math educator trying to help a student with a problem he is facing",
-        "user-role": "student in {subject.branch} struggling with a specific concept",
+        "user-role": "student in {subject_key} struggling with a specific concept",
+        "batch_prompt": "You are an expert math educator creating dialogues to help elementary students understand concepts using different teaching methods.",
         "turns": "4-6",
         "conversations": "3"
     }
