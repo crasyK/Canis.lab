@@ -5,7 +5,6 @@ def generate_batch(json_file):
     with open(json_file, 'r') as f:
         data = json.load(f)
     current_prompt = data["constants"]["prompt"].format_map(data["constants"])
-    print("Current Prompt Template:", current_prompt)
     tree = []
     for v in data["variables"]:
         tree_slide = []
@@ -25,37 +24,31 @@ def generate_batch(json_file):
         for d in combination:
             current_entry = {**current_entry, **d}  # Merge all dicts in the combination
         entries.append(current_entry)
-
     batch = []
-    print(entries)
+    
     for entry in entries:
         batch.append(current_prompt.format_map(entry))
+    return batch
+
+
+def create_batch_file(input_filename,output_filename, batch):
     tasks = []
-
     for index, prompt in enumerate(batch):
-        task = {
-            "custom_id": f"task-{index}",
-            "method": "POST",
-            "url": "/v1/chat/completions",
-            "body": {
-                "model": "gpt-4o-mini",
-                "temperature": 0.1,
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {"role": "system", "content": data["constants"]["batch_prompt"]},
-                    {"role": "user", "content": prompt}
-                ]
-            }
-        }
-        tasks.append(task)
+        with open(input_filename, 'r') as f:
+            data = json.load(f)
+            task = data["task"]
+            task["custom_id"] = task["custom_id"].format_map({"index":index})
+            task["body"]["messages"][1]["content"] = task["body"]["messages"][1]["content"].format_map({"prompt": prompt})
+            tasks.append(task)
     
-    return tasks
+    with open(output_filename, 'w') as f:
+        for obj in tasks:
+            f.write(json.dumps(obj) + '\n')
+    
+    return output_filename
+    
 
-json_file = "Teach_input_template.json"
-tasks = generate_batch(json_file)   
+json_file = "data/Seed_TEACH_math.json"
+batch = generate_batch(json_file) 
 
-file_name = "batch_task_math_teach.jsonl"
-
-with open(file_name, 'w') as file:
-    for obj in tasks:
-        file.write(json.dumps(obj) + '\n')
+print(create_batch_file(json_file,"data/Batch_TEACH_math.jsonl", batch))

@@ -2,8 +2,8 @@
     "variables":
     {
         "variableA":{
-            "branch": ["A","B"],
-            "leaves": [["Aa", "Ab", "Ac"], ["Ba", "Bb", "Bc"]]
+            "A":["Aa", "Ab", "Ac"], 
+            "B":["Ba", "Bb", "Bc"]
         },
         "vairableB": ["user", "client", "participant"],
         "variableC": ["AI", "assistant", "bot"],

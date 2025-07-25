@@ -12,8 +12,20 @@
         "instructions": "I want you to use {teaching-techniques} to help the student understand {subject_value} in the context of {subject_key}. Include about 30% wrong answers from the student. DO NOT REVEAL THE ANSWER!",
         "ai-role": "expert math educator trying to help a student with a problem he is facing",
         "user-role": "student in {subject_key} struggling with a specific concept",
-        "batch_prompt": "You are an expert math educator creating dialogues to help elementary students understand concepts using different teaching methods.",
         "turns": "4-6",
         "conversations": "3"
+    },
+    "task":{
+        "custom_id": "task-{index}",
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            "model": "gpt-4o-mini",
+            "temperature": 0.7,
+            "messages": [
+                {"role": "system", "content": "You are an expert math educator creating dialogues to help students understand concepts using different teaching methods."},
+                {"role": "user", "content": "{prompt}"}
+            ]
+        }
     }
 }
