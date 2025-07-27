@@ -46,9 +46,10 @@ def create_batch_file(input_filename,output_filename, batch):
             f.write(json.dumps(obj) + '\n')
     
     return output_filename
-    
 
-json_file = "data/Seed_TEACH_math.json"
-batch = generate_batch(json_file) 
+if __name__ == "__main__":
+    # Example usage
+    json_file = "data/Seed_TEACH_math.json"
+    batch = generate_batch(json_file) 
 
-print(create_batch_file(json_file,"data/Batch_TEACH_math.jsonl", batch))
+    print(create_batch_file(json_file,"data/Batch_TEACH_math.jsonl", batch))

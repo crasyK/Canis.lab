@@ -1,0 +1,12 @@
+{
+    "name": "TEACH|20250727011419",
+    "start_time": "",
+    "status": "completed",
+    "seed_file": "data/Seed_TEACH_math.json",
+    "batch_file": "data/batch_TEACH.jsonl",
+    "state_data": {
+        "FileObject": "batch_6885615cbec881908c65c1215f13d3cb",
+        "BatchObject": ""
+    },
+    "result_file": "results/TEACH|20250727011419_results.jsonl"
+}
