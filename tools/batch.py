@@ -46,6 +46,38 @@ def next_step(state_file_name, processing_file, process_type ="process"):
         json.dump(run_data, f, indent=4)
     return state_file_name, run_data
 
+def finalize_run(state_file_name):
+    with open(state_file_name, 'r') as f:
+        run_data = json.load(f)
+    
+    with open(run_data["state_steps"][0]["batch_file"], 'r') as f:
+        seed_data = f.readlines()
+
+    system_prompts = [s["body"]["messages"][0]["content"] for s in seed_data]
+
+    current_step = run_data["state_steps"][-1]
+
+    with open(current_step["result_file"], 'r') as f:
+        results = f.readlines()
+
+    content = [r["response"]["body"]["choices"][0]["message"]["content"] for r in results]
+    data = []
+    for arr in content:
+        json_data = json.loads(arr)
+        data.extend(json_data["dialogue"])
+    
+    print(str(len(data)) + " dialogues parsed from the results file.")
+
+    for (dialogue, system_prompt), i in enumerate(zip(data, system_prompts)):
+        dialogue.insert(0, {
+            "role": "system",
+            "content": system_prompt
+        })
+    
+    with open("data/batch_out/finalized"+ run_data["name"]+ "_results.json", 'w') as f:
+        f.write(json.dumps(data, indent=4))
+    
+    
 
 def upload_run(state_file_name):
     with open(state_file_name, 'r') as f:
