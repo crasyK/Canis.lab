@@ -30,7 +30,6 @@ def generate_batch(json_file):
         batch.append(current_prompt.format_map(entry))
     return batch
 
-
 def create_batch_file(input_filename,output_filename, batch):
     tasks = []
     for index, prompt in enumerate(batch):
@@ -46,6 +45,40 @@ def create_batch_file(input_filename,output_filename, batch):
             f.write(json.dumps(obj) + '\n')
     
     return output_filename
+
+def create_process_batch(batch_file, results_file, processing_file, output_filename):
+    with open(batch_file, 'r') as f:
+        batch = [json.loads(line) for line in f.readlines()]
+    
+    with open(results_file, 'r') as f:
+        results = [json.loads(line) for line in f.readlines()]
+
+    input_data = []
+    for b in batch:
+        for r in results:
+            if b["custom_id"] == r["custom_id"]:
+                data = {
+                    "custom_id": b["custom_id"],
+                    "system_prompt": b["body"]["messages"][0]["content"],
+                    "response": r["response"]["body"]["choices"][0]["message"]["content"],
+                }
+                input_data.append(data)
+
+    tasks = []
+    for data in input_data:
+        with open(processing_file, 'r') as f:
+            settings = json.load(f)
+            task = settings["task"]
+            task["custom_id"] = task["custom_id"].format_map({"index": data["custom_id"]+ "////" + str(data["system_prompt"])})
+            task["body"]["messages"][1]["content"] = task["body"]["messages"][1]["content"].format_map({"data": data["response"]})
+            tasks.append(task)
+
+    with open(output_filename, 'w') as f:
+        for obj in tasks:
+            f.write(json.dumps(obj) + '\n')
+    
+    return output_filename
+
 
 if __name__ == "__main__":
     # Example usage

@@ -24,8 +24,10 @@ def upload_batch(batch_filename):
 
 def check_batch_job(batch_id):
   batch_job = client.batches.retrieve(batch_id)
-  return batch_job.status, {"completed": batch_job.request_counts.completed, "failed": batch_job.request_counts.failed, "total": batch_job.request_counts.total}
-
+  if batch_job.status != "failed":
+    return batch_job.status, {"completed": batch_job.request_counts.completed, "failed": batch_job.request_counts.failed, "total": batch_job.request_counts.total}
+  else:
+    return batch_job.status, {"completed": 0, "failed": 0, "total": 0, "error": batch_job}
 def download_batch_results(batch_id, result_file_name):
   batch_job = client.batches.retrieve(batch_id)
   result_file_id = batch_job.output_file_id
