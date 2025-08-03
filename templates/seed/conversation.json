@@ -11,7 +11,7 @@
     },
     "constants": {
         "prompt": "Generate {conversations} different dialogues of {turns} turns, between {ai-role} and a {user-role} with these SPECIFIC requirements: {instructions}",
-        "instructions": "I want you {variableA.branch} to then use {variableD} to help the {variableB} understand {variableA.leaves} in the context of {variableA.branch}.",
+        "instructions": "I want you {variableA_key} to then use {variableD} to help the {variableB} understand {variableA_value} in the context of {variableA_key}.",
         "ai-role": "Role of the AI",
         "user-role": "Role of the User",
         "turns": "How many turns to generate",

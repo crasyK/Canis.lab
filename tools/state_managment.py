@@ -1,6 +1,7 @@
 import os
 import datetime
 import json
+from datasets import Dataset
 from .batch_tools.generator import generate_seed_batch, create_batch_file, create_process_batch
 from .batch_tools.upload import upload_batch, check_batch_job, download_batch_results
 from .batch_tools.extract import extract_batch_in, extract_batch_out
@@ -31,6 +32,7 @@ def create_state(name):
     os.makedirs("runs/" + filename)
     os.makedirs("runs/" + filename + "/batch")
     os.makedirs("runs/" + filename + "/data")
+    os.makedirs("runs/" + filename + "/dataset")
     with open("runs/" + filename + "/state.json", "w") as f:
         json.dump(state, f)
     return state
@@ -164,7 +166,6 @@ def finalize_conversation_state(state_file, system_prompt_marker, structured_con
     for arr in structured_content.values():
         json_data = json.loads(arr)
         data.extend(json_data["dialogue"])
-    
 
     for dialogue, system_prompt in zip(data, system_prompts.values()):
         dialogue.insert(0, {
@@ -175,6 +176,21 @@ def finalize_conversation_state(state_file, system_prompt_marker, structured_con
     new_step["data"]["out"] = {"finalized_conversation": "runs/" + state["name"] + "/data/finalized_conversation.json"}
     with open(new_step["data"]["out"]["finalized_conversation"], 'w') as f:
         json.dump(data, f)
+
+    # Format into Huggingface Datasets format
+
+    processed_data = []
+    for i, conversation in enumerate(data):
+        processed_data.append({
+            "dialogue_id": i,
+            "turns": conversation
+        })
+
+    finalized_dataset = Dataset.from_dict({
+        "dialogue_id": [item["dialogue_id"] for item in processed_data],
+        "turns": [item["turns"] for item in processed_data]
+    })
+    finalized_dataset.save_to_disk("runs/"+ state["name"] +"/dataset/")
 
     new_step["status"] = "completed"
     state["state_steps"].append(new_step)
