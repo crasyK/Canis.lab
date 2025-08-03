@@ -1,5 +1,5 @@
 {"task":{
-  "custom_id": "parse-{index}",
+  "custom_id": "{index}",
   "method": "POST",
   "url": "/v1/chat/completions",
   "metadata": {

@@ -1,7 +1,7 @@
 import json
 from itertools import product
 
-def generate_batch(json_file):
+def generate_seed_batch(json_file):
     with open(json_file, 'r') as f:
         data = json.load(f)
     current_prompt = data["constants"]["prompt"].format_map(data["constants"])
@@ -46,30 +46,24 @@ def create_batch_file(input_filename,output_filename, batch):
     
     return output_filename
 
-def create_process_batch(batch_file, results_file, processing_file, output_filename):
-    with open(batch_file, 'r') as f:
-        batch = [json.loads(line) for line in f.readlines()]
-    
+def create_process_batch(results_file, processing_file, output_filename, batch_file=None):
     with open(results_file, 'r') as f:
         results = [json.loads(line) for line in f.readlines()]
 
     input_data = []
-    for b in batch:
-        for r in results:
-            if b["custom_id"] == r["custom_id"]:
-                data = {
-                    "custom_id": b["custom_id"],
-                    "system_prompt": b["body"]["messages"][0]["content"],
-                    "response": r["response"]["body"]["choices"][0]["message"]["content"],
-                }
-                input_data.append(data)
+    for r in results:
+        data = {
+            "custom_id": r["custom_id"],
+            "response": r["response"]["body"]["choices"][0]["message"]["content"],
+        }
+        input_data.append(data)
 
     tasks = []
     for data in input_data:
         with open(processing_file, 'r') as f:
             settings = json.load(f)
             task = settings["task"]
-            task["custom_id"] = task["custom_id"].format_map({"index": data["custom_id"]+ "////" + str(data["system_prompt"])})
+            task["custom_id"] = task["custom_id"].format_map({"index": data["custom_id"]})
             task["body"]["messages"][1]["content"] = task["body"]["messages"][1]["content"].format_map({"data": data["response"]})
             tasks.append(task)
 
@@ -83,6 +77,6 @@ def create_process_batch(batch_file, results_file, processing_file, output_filen
 if __name__ == "__main__":
     # Example usage
     json_file = "data/Seed_TEACH_math.json"
-    batch = generate_batch(json_file) 
+    batch = generate_seed_batch(json_file) 
 
     print(create_batch_file(json_file,"data/Batch_TEACH_math.jsonl", batch))
