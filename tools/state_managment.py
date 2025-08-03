@@ -28,10 +28,10 @@ def create_state(name):
         "nodes": [],
         "state_steps": []
     }
-    os.makedirs("/runs/" + filename)
-    os.makedirs("/runs/" + filename + "/batch")
-    os.makedirs("/runs/" + filename + "/data")
-    with open("/runs/" + filename + "/state.json", "w") as f:
+    os.makedirs("runs/" + filename)
+    os.makedirs("runs/" + filename + "/batch")
+    os.makedirs("runs/" + filename + "/data")
+    with open("runs/" + filename + "/state.json", "w") as f:
         json.dump(state, f)
     return state
 
@@ -49,11 +49,10 @@ def start_seed_step(state_file, seed_file):
     new_step = empty_step.copy()
     new_step["name"] = "seed"
     new_step["status"] = "created"
-    new_step["batch"]["in"] = "/runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
-    create_batch_file("templates/llm_task.json", new_step["batch"]["in"], generate_seed_batch(seed_file))
+    new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
+    create_batch_file(seed_file, new_step["batch"]["in"], generate_seed_batch(seed_file))
     new_step["data"]["in"] = {"seed_file": seed_file}
-    new_step["data"]["out"] = {"user_prompt": "/runs/" + state["name"] + "/data/user_prompt.jsonl"}
-    new_step["data"]["out"] = {"system_prompt": "/runs/" + state["name"] + "/data/system_prompt.jsonl"}
+    new_step["data"]["out"] = {"user_prompt": "runs/" + state["name"] + "/data/user_prompt.jsonl", "system_prompt": "runs/" + state["name"] + "/data/system_prompt.jsonl"}
     extract_batch_in(new_step["batch"]["in"], new_step["data"]["out"]["user_prompt"], new_step["data"]["out"]["system_prompt"])
     state["nodes"].append("seed_file")
     state["nodes"].append("user_prompt")
@@ -61,7 +60,7 @@ def start_seed_step(state_file, seed_file):
 
 
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
-    new_step["batch"]["out"] = "/runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
+    new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
     
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
@@ -84,7 +83,7 @@ def complete_running_step(state_file, output_marker= "raw_conversation"):
     status, counts = check_batch_job(batch_id)
     if status == "completed":
         last_step["status"] = "completed"
-        last_step["batch"]["out"] = "/runs/" + state["name"] + "/batch/" + last_step["name"] + "_results.jsonl"
+        last_step["batch"]["out"] = "runs/" + state["name"] + "/batch/" + last_step["name"] + "_results.jsonl"
         download_batch_results(batch_id, last_step["batch"]["out"])
         state["status"] = "completed"
         extract_batch_out(last_step["batch"]["out"], last_step["data"]["out"][output_marker])
@@ -113,13 +112,13 @@ def add_step(state_file, step_name, template_file, in_marker= None, out_marker= 
     new_step = empty_step.copy()
     new_step["name"] = step_name
     new_step["status"] = "created"
-    new_step["batch"]["in"] = "/runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
+    new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
     from_data_single_stream_batch(last_step["data"]["out"][in_marker], template_file, new_step["batch"]["in"])
-    new_step["data"]["out"] = {out_marker: "/runs/" + state["name"] + "/data/"+out_marker+".jsonl"}
+    new_step["data"]["out"] = {out_marker: "runs/" + state["name"] + "/data/"+out_marker+".jsonl"}
     new_step["data"]["in"] = {in_marker: last_step["data"]["out"][in_marker]}
     state["nodes"].append(out_marker)
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
-    new_step["batch"]["out"] = "/runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
+    new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
     
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
@@ -171,7 +170,7 @@ def finalize_conversation_state(state_file, system_prompt_marker, structured_con
             "content": system_prompt
         })
 
-    new_step["data"]["out"] = {"finalized_conversation": "/runs/" + state["name"] + "/data/finalized_conversation.json"}
+    new_step["data"]["out"] = {"finalized_conversation": "runs/" + state["name"] + "/data/finalized_conversation.json"}
     with open(new_step["data"]["out"]["finalized_conversation"], 'w') as f:
         json.dump(data, f)
 
