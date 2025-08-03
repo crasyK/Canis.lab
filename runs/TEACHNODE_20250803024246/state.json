@@ -1,1 +1,67 @@
-{"name": "TEACHNODE_20250803024246", "status": "running", "nodes": ["seed_file", "user_prompt", "system_prompt"], "state_steps": [{"name": "seed", "status": "uploaded", "batch": {"in": "runs/TEACHNODE_20250803024246/batch/seed.jsonl", "upload_id": "batch_688eb2800b20819092fd59f66277f267", "out": "runs/TEACHNODE_20250803024246/batch/seed_results.jsonl"}, "data": {"in": {"seed_file": "Seed_TEACH_math.json"}, "out": {"user_prompt": "runs/TEACHNODE_20250803024246/data/user_prompt.jsonl", "system_prompt": "runs/TEACHNODE_20250803024246/data/system_prompt.jsonl"}}}]}
+{
+  "name": "TEACHNODE_20250803024246",
+  "status": "finalized",
+  "nodes": [
+    "seed_file",
+    "user_prompt",
+    "system_prompt",
+    "raw_conversation",
+    "struct"
+  ],
+  "state_steps": [
+    {
+      "name": "seed",
+      "status": "completed",
+      "batch": {
+        "in": "runs/TEACHNODE_20250803024246/batch/seed.jsonl",
+        "upload_id": "batch_688eb2800b20819092fd59f66277f267",
+        "out": "runs/TEACHNODE_20250803024246/batch/seed_results.jsonl"
+      },
+      "data": {
+        "in": {
+          "seed_file": "Seed_TEACH_math.json"
+        },
+        "out": {
+          "user_prompt": "runs/TEACHNODE_20250803024246/data/user_prompt.jsonl",
+          "system_prompt": "runs/TEACHNODE_20250803024246/data/system_prompt.jsonl",
+          "raw_conversation": "runs/TEACHNODE_20250803024246/data/raw_conversation.jsonl"
+        }
+      }
+    },
+    {
+      "name": "parsing",
+      "status": "completed",
+      "batch": {
+        "in": "runs/TEACHNODE_20250803024246/batch/parsing.jsonl",
+        "upload_id": "batch_688eb68453048190918f99ce41ff9c6a",
+        "out": "runs/TEACHNODE_20250803024246/batch/parsing_results.jsonl"
+      },
+      "data": {
+        "in": {
+          "raw_conversation": "runs/TEACHNODE_20250803024246/data/raw_conversation.jsonl"
+        },
+        "out": {
+          "struct": "runs/TEACHNODE_20250803024246/data/struct.jsonl"
+        }
+      }
+    },
+    {
+      "name": "finalize_conversation",
+      "status": "completed",
+      "batch": {
+        "in": "",
+        "upload_id": "",
+        "out": ""
+      },
+      "data": {
+        "in": {
+          "system_prompt": "runs/TEACHNODE_20250803024246/data/system_prompt.jsonl",
+          "structured_content": "runs/TEACHNODE_20250803024246/data/struct.jsonl"
+        },
+        "out": {
+          "finalized_conversation": "runs/TEACHNODE_20250803024246/data/finalized_conversation.json"
+        }
+      }
+    }
+  ]
+}

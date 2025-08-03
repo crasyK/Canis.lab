@@ -3,7 +3,7 @@ import os
 
 state_directory = "runs"
 
-command = input("Enter command (create, seed, check, add, finalize,exit): ").strip().lower()
+command = input("Enter command (create, seed, check, add, finalize, exit): ").strip().lower()
 while command != "exit":
     if command == "create":
         name = input("Enter run name: ").strip()
@@ -40,8 +40,7 @@ while command != "exit":
         print("Checking Markers...")
         print(get_markers(state_file_name+"/state.json"))
         in_marker = input("Enter input marker: ").strip()
-        out_marker = input("Enter output marker: ").strip()
-        state_file = add_step(state_file_name+"/state.json", step_name, template_file, in_marker, out_marker)
+        state_file = add_step(state_file_name+"/state.json", step_name, template_file, in_marker)
         print(f"Step added: {state_file}")
         
     elif command == "finalize":

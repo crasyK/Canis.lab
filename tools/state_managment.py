@@ -85,6 +85,7 @@ def complete_running_step(state_file, output_marker= "raw_conversation"):
         last_step["status"] = "completed"
         last_step["batch"]["out"] = "runs/" + state["name"] + "/batch/" + last_step["name"] + "_results.jsonl"
         download_batch_results(batch_id, last_step["batch"]["out"])
+        last_step["data"]["out"][output_marker] = "runs/" + state["name"] + "/data/" + output_marker + ".jsonl"
         state["status"] = "completed"
         extract_batch_out(last_step["batch"]["out"], last_step["data"]["out"][output_marker])
         state["nodes"].append(output_marker)
@@ -104,19 +105,18 @@ def complete_running_step(state_file, output_marker= "raw_conversation"):
         print("Batch job is still in progress:", counts)
 
 
-def add_step(state_file, step_name, template_file, in_marker= None, out_marker= None):
+def add_step(state_file, step_name, template_file, in_marker= None):
     with open(state_file, 'r') as f:
         state = json.load(f)
     
+    state["status"] = "running"
     last_step = state["state_steps"][-1] if state["state_steps"] else None
     new_step = empty_step.copy()
     new_step["name"] = step_name
     new_step["status"] = "created"
     new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
     from_data_single_stream_batch(last_step["data"]["out"][in_marker], template_file, new_step["batch"]["in"])
-    new_step["data"]["out"] = {out_marker: "runs/" + state["name"] + "/data/"+out_marker+".jsonl"}
     new_step["data"]["in"] = {in_marker: last_step["data"]["out"][in_marker]}
-    state["nodes"].append(out_marker)
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
     new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
     
@@ -147,12 +147,13 @@ def finalize_conversation_state(state_file, system_prompt_marker, structured_con
     new_step["status"] = "created"
     
     for step in state["state_steps"]:
-        for key in step["data"]:
-            if system_prompt_marker in key.keys():
-                new_step["data"]["in"]["system_prompt"] = key[system_prompt_marker]
-            if structured_content_marker in key.keys():
-                new_step["data"]["in"]["structured_content"] = key[structured_content_marker]
-                
+        for i,j in step["data"].items():
+            for key, value in j.items():
+                if system_prompt_marker == str(key):
+                    new_step["data"]["in"].update({"system_prompt": value})
+                if structured_content_marker == str(key):
+                    new_step["data"]["in"].update({"structured_content": value})
+
     with open(new_step["data"]["in"]["system_prompt"], 'r') as f:
         system_prompts = json.load(f)
 
@@ -160,11 +161,12 @@ def finalize_conversation_state(state_file, system_prompt_marker, structured_con
         structured_content = json.load(f)
     
     data = []
-    for arr in structured_content:
+    for arr in structured_content.values():
         json_data = json.loads(arr)
         data.extend(json_data["dialogue"])
-        
-    for (dialogue, system_prompt), i in enumerate(zip(data, system_prompts)):
+    
+
+    for dialogue, system_prompt in zip(data, system_prompts.values()):
         dialogue.insert(0, {
             "role": "system",
             "content": system_prompt

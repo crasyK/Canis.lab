@@ -1,11 +1,7 @@
-{"task":{
+{
   "custom_id": "{index}",
   "method": "POST",
   "url": "/v1/chat/completions",
-  "metadata": {
-    "description": "Parse raw dialogues into structured JSON format.",
-    "tags": ["dialogue", "parsing", "json"]
-  },
   "body": {
     "model": "gpt-4o-mini",
     "temperature": 0.4,
@@ -62,5 +58,4 @@
       }
     }
   }
-}
 }
