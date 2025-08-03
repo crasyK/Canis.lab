@@ -55,7 +55,7 @@ def start_seed_step(state_file, seed_file):
     create_batch_file(seed_file, new_step["batch"]["in"], generate_seed_batch(seed_file))
     new_step["data"]["in"] = {"seed_file": seed_file}
     new_step["data"]["out"] = {"user_prompt": "runs/" + state["name"] + "/data/user_prompt.jsonl", "system_prompt": "runs/" + state["name"] + "/data/system_prompt.jsonl"}
-    extract_batch_in(new_step["batch"]["in"], new_step["data"]["out"]["user_prompt"], new_step["data"]["out"]["system_prompt"])
+    extract_batch_in(new_step["batch"]["in"], new_step["data"]["out"]["system_prompt"], new_step["data"]["out"]["user_prompt"])
     state["nodes"].append("seed_file")
     state["nodes"].append("user_prompt")
     state["nodes"].append("system_prompt")

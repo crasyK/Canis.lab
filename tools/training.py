@@ -1,4 +1,4 @@
-from unsloth.chat_templates import CHAT_TEMPLATES, get_chat_template
+from unsloth.chat_templates import get_chat_template
 from unsloth import FastLanguageModel
 from datasets import load_from_disk
 import torch
@@ -45,7 +45,9 @@ model = FastLanguageModel.get_peft_model(
     use_rslora = False,  # We support rank stabilized LoRA
     loftq_config = None, # And LoftQ
 )
-dataset = format_dataset("runs/TEACHNODE_20250803024246/dataset","llama-3",tokenizer)
+dataset = format_dataset("runs/TEACHNODE_20250803024246/dataset","llama-3.1",tokenizer)
+print(dataset[0]["text"])
+input("Press Enter to continue...")
 print("Dataset loaded and formatted.")
 
 
@@ -80,4 +82,4 @@ trainer_stats = trainer.train()
 model.save_pretrained("lora_model")  # Local saving
 tokenizer.save_pretrained("lora_model")
 
-model.save_pretrained_gguf("model", tokenizer,quantization_method = "q4_k_m", maximum_memory_usage = 0.75)
+model.save_pretrained_gguf("model", tokenizer,quantization_method = "q4_k_m", maximum_memory_usage = 0.75)    
