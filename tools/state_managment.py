@@ -2,10 +2,12 @@ import os
 import datetime
 import json
 from datasets import Dataset
-from .batch_tools.generator import generate_seed_batch, create_batch_file, create_process_batch
+from .batch_tools.generator import generate_seed_batch, create_batch_file
 from .batch_tools.upload import upload_batch, check_batch_job, download_batch_results
 from .batch_tools.extract import extract_batch_in, extract_batch_out
 from .batch_tools.convert import from_data_single_stream_batch
+
+from .logic.blocks import combine, bind, finalize, available_tools
 
 empty_step = {
     "name": "",
@@ -40,8 +42,20 @@ def create_state(name):
 def get_markers(state_file):
     with open(state_file, 'r') as f:
         state = json.load(f)
-    markers = []
     return state["nodes"]
+
+def get_data_from_marker(state_file,marker):
+    with open(state_file, 'r') as f:
+        state = json.load(f)
+    
+    for step in state["state_steps"]:
+        for i,j in step["data"].items():
+            for key, value in j.items():
+                if marker == str(key):
+                    return value
+                
+    raise ValueError(f"Marker '{marker}' not found in state steps")
+    
 
 def start_seed_step(state_file, seed_file):
     with open(state_file, 'r') as f:
@@ -129,6 +143,43 @@ def add_step(state_file, step_name, template_file, in_marker= None):
         json.dump(state, f)
     
     return state_file
+
+def logic_tool(state_file,tool_name, input_data, outputmarker_name):
+    with open(state_file, "r") as f:
+        state = json.load(f)
+    new_step = empty_step.copy()
+    new_step["name"] = tool_name
+    new_step["status"] = "completed"
+
+    if tool_name == "combine":
+        data_first = get_data_from_marker(state_file, input_data["first_data"])
+        data_second = get_data_from_marker(state_file, input_data["second_data"])
+        new_step["data"]["in"] = {"first_data": data_first, "second_data": data_second}
+        result = combine(data_first, data_second)
+    elif tool_name == "bind":
+        structured_content = get_data_from_marker(state_file, input_data["structured_content"])
+        new_step["data"]["in"] = {"structured_content": structured_content}
+        key_name = input_data["key_name"]
+        result = bind(structured_content, key_name)
+    elif tool_name == "finalize":
+        data = get_data_from_marker(state_file, input_data["data"])
+        new_step["data"]["in"] = {"data": data}
+        result = finalize(data)
+    else:
+        raise ValueError("Unknown tool name")
+    
+    new_step["data"]["out"] = {outputmarker_name: "runs/" + state["name"] + "/data/" + tool_name + "_result.jsonl"}
+    
+    with open(new_step["data"]["out"][outputmarker_name], 'w') as f:
+        json.dump(result, f)
+            
+    new_step["status"] = "completed"
+    state["state_steps"].append(new_step)
+    state["nodes"].append(outputmarker_name)
+    
+    with open(state_file, 'w') as f:
+        json.dump(state, f)
+    return state_file    
 
 def finalize_conversation_state(state_file, system_prompt_marker, structured_content_marker):
     with open(state_file, 'r') as f:
