@@ -35,16 +35,3 @@ def download_batch_results(batch_id, result_file_name):
 
   with open(result_file_name, 'wb') as file:
       file.write(result)    
-      
-if __name__ == "__main__":
-  # Example usage
-  from tools.batch_tools.generator import generate_batch, create_batch_file
-  
-  json_file = "data/Seed_TEACH_math.json"
-  batch = generate_batch(json_file) 
-
-  print(create_batch_file(json_file, "data/Batch_TEACH_math.jsonl", batch))
-  
-  upload_batch("data/Batch_TEACH_math.jsonl")
-
-  print(check_batch_job("state/Batch_TEACH_math.txt"))

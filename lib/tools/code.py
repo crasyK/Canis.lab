@@ -3,6 +3,9 @@ from datasets import Dataset
 
 available_tools = ["combine","bind","finalize"]
 
+def get_available_code_tools():
+    return available_tools
+
 def combine(first_data, second_data):
     if len(first_data) != len(second_data):
         if len(first_data) == 1 or len(second_data) == 1:

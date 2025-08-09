@@ -1,0 +1,73 @@
+{
+  "step": {
+    "name": "parse",
+    "data_markers": {
+      "in": {"data":"str"},
+      "out": {"dialogues": "json_data"}
+    }
+  },
+"call": {
+  "custom_id": "{index}",
+  "method": "POST",
+  "url": "/v1/responses",
+  "body": {
+    "model": "gpt-5-nano",
+    "input": [
+      {
+        "role": "system",
+        "content": "You are parsing raw dialogues into structured JSON format. The following is a template for the dialogues: \"conversations\": [{\"turns\": [{\"assistant\": \"\", \"user\": \"\"}]}]}"
+      },
+      {
+        "role": "user",
+        "content": "{data}"
+      }
+    ],
+    "text": {
+      "format":{
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "dialogues",
+                    "strict": true,
+                    "schema": {
+                    "type": "object",
+                    "properties": {
+                        "dialogue": {
+                        "type": "array",
+                        "description": "An array of dialogue sequences. Each dialogue is an array of turns between participants.",
+                        "items": {
+                            "type": "array",
+                            "description": "A single dialogue: ordered list of message-exchanges.",
+                            "items": {
+                            "type": "object",
+                            "description": "A single turn in the dialogue.",
+                            "properties": {
+                                "role": {
+                                "type": "string",
+                                "description": "Role of the speaker in this turn, e.g., 'assistant' or 'user'.",
+                                "enum": ["assistant", "user"]
+                                },
+                                "content": {
+                                "type": "string",
+                                "description": "Text spoken by the participant in this turn.",
+                                "minLength": 1
+                                }
+                            },
+                            "required": ["role", "content"],
+                            "additionalProperties": false
+                            },
+                            "minItems": 1
+                        },
+                        "minItems": 1
+                        }
+                    },
+                    "required": ["dialogue"],
+                    "additionalProperties": false
+                    }
+                }
+        }
+      }
+    }
+  }
+}
+}

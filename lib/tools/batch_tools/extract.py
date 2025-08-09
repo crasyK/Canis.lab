@@ -1,5 +1,7 @@
 import json
 
+
+# Function to extract batch system_prompt and user_prompt from a uploaded batch file
 def extract_batch_in(batch_file, inputA_file, inputB_file):
     with open(batch_file, 'r') as f:
         batch = [json.loads(line) for line in f.readlines()]
@@ -19,7 +21,10 @@ def extract_batch_in(batch_file, inputA_file, inputB_file):
     
     with open(inputB_file, 'w') as f:
         json.dump(input_data_B, f)
+    
 
+
+# Function to extract batch output from a downloaded batch file
 def extract_batch_out(batch_file, output_file):
     with open(batch_file, 'r') as f:
         batch = [json.loads(line) for line in f.readlines()]

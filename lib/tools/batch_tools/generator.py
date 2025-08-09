@@ -46,7 +46,7 @@ def create_batch_file(input_filename,output_filename, batch):
     
     return output_filename
 
-def create_process_batch(results_file, processing_file, output_filename, batch_file=None):
+def create_process_batch(results_file, processing_file, output_filename):
     with open(results_file, 'r') as f:
         results = [json.loads(line) for line in f.readlines()]
 
