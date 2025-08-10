@@ -1,5 +1,5 @@
 import json
-from .batch_tools.generator import generate_batch, create_batch_file
+from .global_func import get_type
 
 available_tools = {"derive_conversation":"lib/tools/llm_templates/derive_conversation.json", "parse_conversation":"lib/tools/llm_templates/parse_conversation.json", "clean":"lib/tools/llm_templates/clean.json"}
 
@@ -15,21 +15,6 @@ def get_tool_template(tool_name):
     
     return template
 
-def get_type(item):
-    if isinstance(item, list):
-        return "list"
-    elif isinstance(item, str):
-            try:
-                parsed = json.loads(item)
-                if isinstance(parsed, dict):
-                    return "json_data"
-                else:
-                    return "str"
-            except (json.JSONDecodeError, TypeError):
-                return "str"
-    return "unknown"
-
-
 # First return what markers the tool needs
 def prepare_data(tool_name):
     if tool_name not in get_available_llm_tools():
@@ -37,7 +22,7 @@ def prepare_data(tool_name):
     template = get_tool_template(tool_name)
     step_data = template["step"]
 
-    return step_data["data_markers"]["in"]
+    return step_data["data_markers"]
 
 # Then validate the given markers against the template (seperate for user loop to correct mistakes)
 def validate_markers(tool_name, data):
@@ -60,7 +45,7 @@ def validate_markers(tool_name, data):
             if get_type(value) != expected_type:
                 raise ValueError(f"Data type mismatch for key '{key}': expected {expected_type}, got {get_type(value)}")
     
-    return True
+    return "llm"
 
 
 # Finally generate the batch file if the markers are valid

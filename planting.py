@@ -1,9 +1,17 @@
-from lib.state_managment import create_state, get_markers, start_seed_step, add_step, complete_running_step, finalize_conversation_state
+from lib.state_managment import create_state, start_seed_step, complete_running_step, use_tool
+from lib.tools.llm import get_available_llm_tools, prepare_data, validate_markers
+from lib.tools.code import validate_code_tool_use, prepare_tool_use, get_available_code_tools
 import os
 
 state_directory = "runs"
 
-command = input("Enter command (create, seed, check, add, finalize, exit): ").strip().lower()
+def valid_input_loop(valid_options):
+    selected_option = None
+    while selected_option not in valid_options:
+        selected_option = input(f"Select an option from {valid_options}: ").strip().lower()
+    return selected_option
+
+command = valid_input_loop(["create", "seed", "check", "add", "finalize", "exit"])
 while command != "exit":
     if command == "create":
         name = input("Enter run name: ").strip()

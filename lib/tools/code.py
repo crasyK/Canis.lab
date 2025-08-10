@@ -1,7 +1,25 @@
 import json
 from datasets import Dataset
+from .global_func import get_type
+from typing import Any, Callable
 
-available_tools = ["combine","bind","finalize"]
+available_tools = {
+    "combine": {
+        "data_markers": {
+            "in": {"prefix_data": "json_data","sufix_data":"json_data"},
+            "out": {"derived_data":"json_data"}
+        }},
+    "bind": {
+        "data_markers": {
+            "in": {"structured_content": "json_data", "key_name": "str"},
+            "out": {"bound_data": "json_data"}
+        }},
+    "finalize": {
+        "data_markers": {
+            "in": {"data":"json_data"},
+            "out": {"finalized_data":"huggingface_dataset"}
+        }}
+    }
 
 def get_available_code_tools():
     return available_tools
@@ -31,10 +49,10 @@ def bind(structured_content, key_name):
 
 def finalize(data):
     processed_data = []
-    for i, data in enumerate(data):
+    for i, item in enumerate(data):
         processed_data.append({
             "id": i,
-            "content": data
+            "content": item
         })
         
     finalized_dataset = Dataset.from_dict({
@@ -42,3 +60,47 @@ def finalize(data):
         "content": [item["content"] for item in processed_data]
     })
     return finalized_dataset
+
+REGISTRY: dict[str, Callable[..., Any]] = {
+    "finalize": finalize,
+    "combine": combine,
+    "bind": bind
+}
+
+def prepare_tool_use(tool_name):
+    available_tools = get_available_code_tools()
+    if tool_name not in available_tools:
+        raise ValueError(f"Tool '{tool_name}' is not available.")
+
+    return available_tools[tool_name].get("data_markers", {})
+
+def validate_code_tool_use(tool_name, data):
+    # Validate data against the tool's expected input markers
+    input_markers = prepare_tool_use(tool_name)
+    for key, expected_type in input_markers.items():
+        if key not in data:
+            raise ValueError(f"Missing input '{key}' for tool '{tool_name}'.")
+        if get_type(data[key]) != expected_type:
+            raise ValueError(f"Input '{key}' for tool '{tool_name}' must be of type {expected_type}.")
+
+    return "code"
+
+def use_code_tool(tool_name, data):
+    fn = REGISTRY.get(tool_name)
+    if not fn:
+        raise ValueError(f"Unknown tool '{tool_name}'")
+    if not validate_code_tool_use(tool_name, data):
+        raise ValueError(f"Invalid data for tool '{tool_name}'")
+    return fn(**data)
+
+def save_code_tool_results(tool_name, results, filename):
+    if tool_name == "finalize":
+        finalized_dataset = results
+        finalized_dataset.save_to_disk(filename)
+    else:
+        # Save the results of the code tool to a file
+        dataset = {}
+        with open(filename, "w") as f:
+            for i, item in enumerate(results):
+                dataset[i] = item
+            json.dump(dataset, f)
