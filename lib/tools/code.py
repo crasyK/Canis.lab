@@ -1,6 +1,5 @@
 import json
 from datasets import Dataset
-from .global_func import get_type, check_data_type, has_connection
 from typing import Any, Callable
 
 available_tools_global = {
@@ -49,26 +48,29 @@ available_tools_global = {
 def get_available_code_tools():
     return available_tools_global.keys()
 
-def combine(first_data, second_data):
-    if len(first_data) != len(second_data):
-        if len(first_data) == 1 or len(second_data) == 1:
-            # If one list is a single item, expand it to match the other
-            if len(first_data) == 1:
-                first_data = first_data * len(second_data)
+def combine(prefix_data, sufix_data):
+    combined = dict(sufix_data)  # Copy to avoid in-place modification
+
+    for key, prefix_val in prefix_data.items():
+        if key in combined:
+            sufix_val = combined[key]
+            # If sufix_val is a list, insert prefix_val as first element
+            if isinstance(sufix_val, list):
+                combined[key] = [prefix_val] + sufix_val
+            # If both values are dicts, merge them (prefix_data takes precedence)
+            elif isinstance(sufix_val, dict) and isinstance(prefix_val, dict):
+                combined[key] = {**prefix_val, **sufix_val}
+            # Otherwise, just replace
             else:
-                second_data = second_data * len(first_data)
+                combined[key] = prefix_val
         else:
-            raise ValueError("Lists must be of the same length or one must be a single item.")
-    
-    for a, b in zip(first_data, second_data):
-        b.insert(0, a)
-    
-    return second_data
+            combined[key] = prefix_val
+    return combined
 
 def bind(structured_content, key_name):
     data = []
-    for arr in structured_content.values():
-        json_data = json.loads(arr)
+    for key, value in structured_content.items():
+        json_data = json.loads(value)
         data.extend(json_data[key_name])
     return data
 
@@ -110,8 +112,8 @@ def percentage(data, total):
 def expand(single, data_to_adapt_to):
     return_data = {}
     for key, value in data_to_adapt_to.items():
-        return_data[key] = single
-    return return_data 
+        return_data.update({key: single})
+    return return_data
 
 REGISTRY: dict[str, Callable[..., Any]] = {
     "finalize": finalize,
@@ -132,7 +134,7 @@ def prepare_tool_use(tool_name):
     return available_tools_global[tool_name].get("data_markers", {})
 
 
-def use_code_tool(tool_name, data):
+def execute_code_tool(tool_name, data):
     fn = REGISTRY.get(tool_name)
     if not fn:
         raise ValueError(f"Unknown tool '{tool_name}'")

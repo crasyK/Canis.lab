@@ -1,5 +1,4 @@
 import json
-from .global_func import check_single_or_data_type
 available_tools = {"derive_conversation":"lib/tools/llm_templates/derive_conversation.json", "parse_conversation":"lib/tools/llm_templates/parse_conversation.json", "clean":"lib/tools/llm_templates/clean.json"}
 
 def get_available_llm_tools():

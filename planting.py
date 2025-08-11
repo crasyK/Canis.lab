@@ -12,16 +12,18 @@ def valid_input_loop(valid_options):
         selected_option = input(f"Select an option from {valid_options}: ").strip().lower()
     return selected_option
 
-def valid_data_input_loop(availabe_markers, needed_marker):
+def valid_data_input_loop(availabe_markers, needed_marker,restrictions):
     selected_marker = None
     while selected_marker not in [m["name"] for m in availabe_markers]:
-        selected_marker = input(f"Select a marker from {[(m["name"],m["type"]) for m in availabe_markers]}: ").strip()
+        availabe_markers_full = {m["name"]:m["type"] for m in availabe_markers}
+        selected_marker = input(f"Select a marker from {availabe_markers_full}: ").strip()
         if selected_marker not in [m["name"] for m in availabe_markers]:
             print(f"Invalid marker: {selected_marker}. Please try again.")
-        elif has_connection(availabe_markers[selected_marker],next(iter(needed_marker.values()))):
+        elif has_connection(availabe_markers_full[selected_marker],restrictions):
             return selected_marker
         else:
-            print(f"Marker {selected_marker} does not match the required type {next(iter(needed_marker.values()))}. Please try again.")
+            print(f"Marker {selected_marker} does not match the required type {restrictions}. Please try again.")
+            selected_marker = None
 
 def valid_single_input_loop(valid_options):
     content = None
@@ -40,7 +42,7 @@ def reference_map_markers(available_markers, tool_markers):
         if "single" in tool_markers[needed_marker].values():    
             mapped_data[needed_marker] = valid_single_input_loop(tool_markers[needed_marker].keys())
         else:   
-            mapped_data[needed_marker] = valid_data_input_loop(available_markers, tool_markers[needed_marker])
+            mapped_data[needed_marker] = valid_data_input_loop(available_markers, tool_markers, tool_markers[needed_marker])
     return mapped_data
         
 
@@ -68,7 +70,7 @@ while command != "exit":
     
     elif command == "check":
         state_file_path = state_directory + valid_input_loop([f for f in os.listdir(state_directory)]) +"/state.json"
-        complete_running_step(state_file_path)
+        print(complete_running_step(state_file_path))
 
     elif command == "tool":
         state_file_path = state_directory + valid_input_loop([f for f in os.listdir(state_directory)]) +"/state.json"
@@ -78,10 +80,12 @@ while command != "exit":
             tool_name = valid_input_loop(get_available_llm_tools())
             data = reference_map_markers(get_markers(state_file_path), prepare_data(tool_name)["in"])
             state_file = use_llm_tool(state_file_path, step_name, tool_name, data)
+            print(f"LLM tool used: {tool_name}, batch file uploaded")
         else:
             tool_name = valid_input_loop(get_available_code_tools())
             data = reference_map_markers(get_markers(state_file_path), prepare_tool_use(tool_name)["in"])
             state_file = use_code_tool(state_file_path, step_name, tool_name, data)
+            print(f"Code tool used: {tool_name}")
     else:
         print("Invalid command. Please try again.")
     print("\nNext command:")
