@@ -26,39 +26,32 @@
           "content": "__data__"
         }
       ],
-      "text": {
-        "format": {
-          "response_format": {
+        "text": {
+          "format": {
             "type": "json_schema",
-            "json_schema": {
-              "name": "instruction_data",
-              "strict": true,
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "Instruction": {
-                    "type": "string",
-                    "description": "Task we want the model to perform."
-                  },
-                  "Input": {
-                    "type": "string",
-                    "description": "Optional, but useful, it will essentially be the user's query."
-                  },
-                  "Output": {
-                    "type": "string",
-                    "description": "The expected result of the task and the output of the model."
-                  }
+            "name": "instruction_data",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "Instruction": {
+                  "type": "string",
+                  "description": "Task we want the model to perform."
                 },
-                "required": [
-                  "Instruction",
-                  "Output"
-                ],
-                "additionalProperties": false
-              }
+                "Input": {
+                  "type": "string",
+                  "description": "Optional, but useful, it will essentially be the user's query."
+                },
+                "Output": {
+                  "type": "string",
+                  "description": "The expected result of the task and the output of the model."
+                }
+              },
+              "required": ["Instruction", "Output"],
+              "additionalProperties": false
             }
           }
         }
-      }
     }
   }
 }

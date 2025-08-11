@@ -60,7 +60,7 @@ while command != "exit":
         else:
             tool_name = valid_input_loop(get_available_code_tools())
             data = map_markers(get_markers(state_file_path), prepare_tool_use(tool_name)["in"])
-            if validate_code_tool_use(data, prepare_tool_use(tool_name)["in"]):
+            if validate_code_tool_use(tool_name,data):
                 state_file = use_tool(state_file_path, step_name, tool_name, "code", data)
             else:
                 print("Invalid marker mapping. Please try again.")

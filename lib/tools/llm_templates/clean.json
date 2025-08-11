@@ -18,27 +18,24 @@
             ],
             "text": {
                 "format": {
-                    "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "data_classification",
-                        "strict": true,
-                        "schema": {
-                        "type": "object",
-                        "properties": {
-                            "status": {
-                            "type": "string",
-                            "description": "Classification status of the data.",
-                            "enum": __criteria_array__
-                            }
-                        },
-                        "required": ["status"],
-                        "additionalProperties": false
-                        }
+                "type": "json_schema",
+                "name": "data_classification",
+                "strict": true,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                    "status": {
+                        "type": "string",
+                        "description": "Classification status of the data.",
+                        "enum": __criteria_array__
                     }
+                    },
+                    "required": ["status"],
+                    "additionalProperties": false
                     }
                 }
             }
         }
-    }
+    }    
 }
+

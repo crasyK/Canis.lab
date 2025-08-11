@@ -147,7 +147,7 @@ def complete_running_step(state_file):
             json.dump(state, f)
 
         output_marker["state"] = "completed"
-        state["nodes"] = list(map(lambda x: x.replace(get_uploaded_markers(state_file)[-1], output_marker), state["nodes"]))
+        (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
         print("Batch job completed successfully:", counts)
         return state_file
     elif status == "failed":

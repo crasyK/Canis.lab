@@ -3,7 +3,7 @@ from datasets import Dataset
 from .global_func import get_type
 from typing import Any, Callable
 
-available_tools = {
+available_tools_global = {
     "combine": {
         "data_markers": {
             "in": {"prefix_data": "json_data","sufix_data":"json_data"},
@@ -18,11 +18,16 @@ available_tools = {
         "data_markers": {
             "in": {"data":"json_data"},
             "out": {"finalized_data":"huggingface_dataset"}
-        }}
+        }},
+    "segregate": {
+        "data_markers": {
+            "in": {"data": "json_data", "classification": "json_data"},
+            "out": {"segregated_data": "json_data"}
+        }},  
     }
 
 def get_available_code_tools():
-    return available_tools
+    return available_tools_global.keys()
 
 def combine(first_data, second_data):
     if len(first_data) != len(second_data):
@@ -72,7 +77,7 @@ def prepare_tool_use(tool_name):
     if tool_name not in available_tools:
         raise ValueError(f"Tool '{tool_name}' is not available.")
 
-    return available_tools[tool_name].get("data_markers", {})
+    return available_tools_global[tool_name].get("data_markers", {})
 
 def validate_code_tool_use(tool_name, data):
     # Validate data against the tool's expected input markers
