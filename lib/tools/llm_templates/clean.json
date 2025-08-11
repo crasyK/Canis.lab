@@ -2,8 +2,8 @@
     "step": {
         "name": "clean",
         "data_markers": {
-            "in":  {"__criteria_verbose__":"str","__criteria_array__":"list","__dirty_data__":"str"},
-            "out": {"data_classification":"json_data"}
+            "in":  {"__criteria_verbose__":{"str":"data"},"__lables__":{"list":"data"},"__dirty_data__":{"str":"data"}},
+            "out": {"data_classification":{"json":"data"}}
         }
     },
     "call": {
@@ -27,7 +27,7 @@
                     "status": {
                         "type": "string",
                         "description": "Classification status of the data.",
-                        "enum": __criteria_array__
+                        "enum": __lables__
                     }
                     },
                     "required": ["status"],

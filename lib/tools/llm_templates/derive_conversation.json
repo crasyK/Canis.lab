@@ -2,8 +2,8 @@
     "step": {
         "name": "derive",
         "data_markers": {
-            "in": {"__context__":"str","__num_conversations__":"str","__num_turns__":"str","__ai_role__":"str","__user_role__":"str"},
-            "out": {"derived_data":"str"}
+            "in": {"__context__":{"str":"data"},"__num_conversations__":{"str":"data"},"__num_turns__":{"str":"data"},"__ai_role__":{"str":"data"},"__user_role__":{"str":"data"}},
+            "out": {"derived_data":{"str":"data"}}
         }
     },
     "call": {

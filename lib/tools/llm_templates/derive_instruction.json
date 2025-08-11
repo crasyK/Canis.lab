@@ -3,12 +3,12 @@
     "name": "derive_instruction",
     "data_markers": {
       "in": {
-        "__context__": "str",
-        "__num_instructions__": "str",
-        "__task_description__": "str"
+        "__context__": {"str":"data"},
+        "__num_instructions__": {"str":"data"},
+        "__task_description__": {"str":"data"}
       },
       "out": {
-        "derived_data": "str"
+        "derived_data": {"str":"data"}
       }
     }
   },

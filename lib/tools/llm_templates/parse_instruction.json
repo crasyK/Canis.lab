@@ -2,12 +2,8 @@
   "step": {
     "name": "parse_instruction",
     "data_markers": {
-      "in": {
-        "__data__": "str"
-      },
-      "out": {
-        "instruction_data": "json_data"
-      }
+      "in": {"__data__":{"str":"data"}},
+      "out": {"instruction_data":{"json":"data"} }
     }
   },
   "call": {

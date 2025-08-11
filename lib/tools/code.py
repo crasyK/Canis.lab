@@ -1,30 +1,50 @@
 import json
 from datasets import Dataset
-from .global_func import get_type
+from .global_func import get_type, check_data_type, has_connection
 from typing import Any, Callable
 
 available_tools_global = {
     "combine": {
         "data_markers": {
-            "in": {"prefix_data": "json_data","sufix_data":"json_data"},
-            "out": {"derived_data":"json_data"}
+            "in": {"prefix_data": {"json":"data"},"sufix_data":{"json":"data"}},
+            "out": {"derived_data":{"json":"data"}}
         }},
     "bind": {
         "data_markers": {
-            "in": {"structured_content": "json_data", "key_name": "str"},
-            "out": {"bound_data": "json_data"}
+            "in": {"structured_content": {"json":"data"}, "key_name": {"str":"single"}},
+            "out": {"bound_data": {"json":"data"}}
         }},
     "finalize": {
         "data_markers": {
-            "in": {"data":"json_data"},
+            "in": {"data":{"json":"data"}},
             "out": {"finalized_data":"huggingface_dataset"}
         }},
     "segregate": {
         "data_markers": {
-            "in": {"data": "json_data", "classification": "json_data"},
-            "out": {"segregated_data": "json_data"}
-        }},  
-    }
+            "in": {"data": {"json":"data"}, "classification": {"json":"data"}, "labels": {"list":"single"}},
+            "out": {"segregated_data": {"json":"data"}}
+        }},
+    "expand": {
+        "data_markers": {
+            "in": {"single": {"json":"single","int":"single","str":"single","list":"single"}, "data_to_adapt_to": {"json":"data","int":"data","str":"data","list":"data"}},
+            "out": {"expanded_data": {"json":"data","int":"data","str":"data","list":"data"}}  
+        }},
+    "select": {
+        "data_markers": {
+            "in": {"segregated_data": {"json":"data"}, "lable": {"str":"single"}}, 
+            "out": {"selected_data": {"json":"data"}}
+        }},
+    "count": {
+        "data_markers": {
+            "in": {"data": {"json":"data"}},
+            "out": {"counts": {"int":"single"}}
+        }},
+    "percentage": {
+        "data_markers": {
+            "in": {"data": {"json":"data"}, "total": {"int":"single"}},
+            "out": {"percentage": {"int":"single"}} #0-100 rounded to nearest integer
+    }},
+}
 
 def get_available_code_tools():
     return available_tools_global.keys()
@@ -66,10 +86,42 @@ def finalize(data):
     })
     return finalized_dataset
 
+def segregate(data, classification, lables):
+    return_data = {}
+    for label in lables:
+        return_data[label] = {}
+    for i, item in enumerate(data):
+        label = classification[i]
+        return_data[label][i] = item
+    return return_data
+
+def select(segregated_data, label):
+    return segregated_data.get(label, dict())
+
+def count(data):
+    return len(list(data.keys()))
+
+def percentage(data, total):
+    if total == 0:
+        return 0
+    count = len(list(data.keys()))
+    return round((count / total) * 100)
+
+def expand(single, data_to_adapt_to):
+    return_data = {}
+    for key, value in data_to_adapt_to.items():
+        return_data[key] = single
+    return return_data 
+
 REGISTRY: dict[str, Callable[..., Any]] = {
     "finalize": finalize,
     "combine": combine,
-    "bind": bind
+    "bind": bind,
+    "segregate": segregate,
+    "select": select,
+    "count": count,
+    "percentage": percentage,    
+    "expand": expand
 }
 
 def prepare_tool_use(tool_name):
@@ -79,28 +131,11 @@ def prepare_tool_use(tool_name):
 
     return available_tools_global[tool_name].get("data_markers", {})
 
-def validate_code_tool_use(tool_name, data):
-    # Validate data against the tool's expected input markers
-    input_markers = prepare_tool_use(tool_name)
-    for key, expected_type in input_markers.items():
-        if key not in data:
-            raise ValueError(f"Missing input '{key}' for tool '{tool_name}'.")
-        with open(data[key], 'r') as file:
-            data_json = json.load(file)
-        if length_of_data == 0: length_of_data = len(data_json)
-        elif length_of_data != len(data_json):
-            raise ValueError("All input data files must have the same number of entries.")
-        for key, value in data_json.items():
-            if get_type(value) != expected_type:
-                raise ValueError(f"Data type mismatch for key '{key}': expected {expected_type}, got {get_type(value)}")
-    return True
 
 def use_code_tool(tool_name, data):
     fn = REGISTRY.get(tool_name)
     if not fn:
         raise ValueError(f"Unknown tool '{tool_name}'")
-    if not validate_code_tool_use(tool_name, data):
-        raise ValueError(f"Invalid data for tool '{tool_name}'")
     return fn(**data)
 
 def save_code_tool_results(tool_name, results, filename):

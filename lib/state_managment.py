@@ -4,8 +4,8 @@ import json
 from datasets import Dataset
 from .tools.batch import upload_batch, check_batch_job, download_batch_results, convert_batch_in_to_json_data, convert_batch_out_to_json_data
 from .tools.seed import generate_seed_batch_file
-from .tools.llm import generate_llm_tool_batch_file
-from .tools.code import use_code_tool, save_code_tool_results
+from .tools.llm import generate_llm_tool_batch_file, prepare_data
+from .tools.code import use_code_tool, save_code_tool_results, prepare_tool_use
 
 empty_step_llm = {
     "name": "",
@@ -105,14 +105,14 @@ def start_seed_step(state_file, seed_file):
     generate_seed_batch_file(seed_file, new_step["batch"]["in"])
     new_step["data"]["out"] = {"user_prompt": "runs/" + state["name"] + "/data/user_prompt.jsonl", "system_prompt": "runs/" + state["name"] + "/data/system_prompt.jsonl"}
     convert_batch_in_to_json_data(new_step["batch"]["in"], new_step["data"]["out"]["system_prompt"], new_step["data"]["out"]["user_prompt"])
-    state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], "str"))
-    state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], "str"))
+    state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], {"str":"data"}))
+    state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], {"str":"data"}))
 
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
     new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
 
     new_step["data"]["out"] = {"raw_seed_data": "runs/" + state["name"] + "/data/raw_seed_data.jsonl"}
-    state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], "str", "uploaded"))
+    state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "uploaded"))
 
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
@@ -159,45 +159,56 @@ def complete_running_step(state_file):
         last_step["status"] = "in_progress"
         print("Batch job is still in progress:", counts)
 
-
-def use_tool(state_file, custom_name, tool_name, tool_type, marker_datafile_dict):
+def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
     with open(state_file, 'r') as f:
         state = json.load(f)
         
     data,adresses = get_marker_data_from_dict(state_file, marker_datafile_dict)
     state["status"] = "running"
-    last_step = state["state_steps"][-1] if state["state_steps"] else None
-    if tool_type == "llm":  
-        new_step = empty_step_llm.copy()
-        new_step["name"] = custom_name
-        new_step["status"] = "created"
-        new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/" + new_step["name"] + ".jsonl"
-        new_step["data"]["in"] = adresses
-        generate_llm_tool_batch_file(tool_name, adresses, new_step["batch"]["in"])
-        new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
-        new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
-        new_step["data"]["out"] = {new_step["name"]+"_results": "runs/" + state["name"] + "/data/" + new_step["name"] + "_results.jsonl"}
-        state["nodes"].append(create_markers(new_step["name"]+"_results", new_step["data"]["out"][new_step["name"]+"_results"], "str", "uploaded"))
-        new_step["status"] = "uploaded"
-    elif tool_type == "code": 
-        new_step = empty_step_code.copy()
-        new_step["name"] = custom_name
-        new_step["status"] = "created"
-        new_step["tool_name"] = tool_name
-        new_step["data"]["in"] = adresses
-        if tool_name == "finalize":
-            save_code_tool_results(tool_name, use_code_tool(tool_name, data), "runs/" + state["name"] + "/dataset/")
-            new_step["data"]["out"] = {"dataset": "runs/" + state["name"] + "/dataset/"}
-            new_step["status"] = "completed"
-            state["status"] = "finalized"
-        else:
-            save_code_tool_results(tool_name, use_code_tool(tool_name, data), "runs/" + state["name"] + "/data/" + new_step["name"] + "_results.jsonl")
-            new_step["data"]["out"] = {new_step["name"]+"_results": "runs/" + state["name"] + "/data/" + new_step["name"] + "_results.jsonl"}
-            state["nodes"].append(create_markers(new_step["name"]+"_results", new_step["data"]["out"][new_step["name"]+"_results"], "str"))
-            new_step["status"] = "completed"
-            state["status"] = "completed"
+    new_step = empty_step_llm.copy()
+    new_step["name"] = custom_name
+    new_step["status"] = "created"
+    new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/" + new_step["name"] + ".jsonl"
+    new_step["data"]["in"] = adresses
+    generate_llm_tool_batch_file(tool_name, adresses, new_step["batch"]["in"])
+    output_markers = {"name":str(next(iter(prepare_data(tool_name)["out"].keys()))), "type": prepare_data(tool_name)["out"][next(iter(prepare_data(tool_name)["out"].values()))]}
 
-    else: raise ValueError("Invalid tool type. Must be 'llm' or 'code'.")
+    new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
+    new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_" + output_markers["name"]+".jsonl"
+    new_step["data"]["out"] = {output_markers["name"]: "runs/" + state["name"] + "/data/" + new_step["name"] + "_"+output_markers["name"]+".jsonl"}
+    state["nodes"].append(create_markers(output_markers["name"], new_step["data"]["out"][output_markers["name"]], output_markers["type"], "uploaded"))
+    new_step["status"] = "uploaded"
+
+    state["state_steps"].append(new_step)
+    
+    with open(state_file, 'w') as f:
+        json.dump(state, f)
+    
+    return state_file
+
+def use_code_tool(state_file, custom_name, tool_name,reference_dict):
+    with open(state_file, 'r') as f:
+        state = json.load(f)
+    data,adresses = get_marker_data_from_dict(state_file, reference_dict)
+    state["status"] = "running"
+    new_step = empty_step_code.copy()
+    new_step["name"] = custom_name
+    new_step["status"] = "created"
+    new_step["tool_name"] = tool_name
+    new_step["data"]["in"] = adresses
+    output_markers = {"name":str(next(iter(prepare_tool_use(tool_name)["out"].keys()))), "type": prepare_tool_use(tool_name)["out"][next(iter(prepare_data(tool_name)["out"].values()))]}
+    if tool_name == "finalize":
+        save_code_tool_results(tool_name, use_code_tool(tool_name, data), "runs/" + state["name"] + "/dataset/")
+        new_step["data"]["out"] = {output_markers["name"]: "runs/" + state["name"] + "/dataset/"}
+        state["nodes"].append(create_markers(output_markers["name"], new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
+        new_step["status"] = "completed"
+        state["status"] = "finalized"
+    else:
+        save_code_tool_results(tool_name, use_code_tool(tool_name, data), "runs/" + state["name"] + "/data/" + new_step["name"] + "_"+output_markers["name"]+".jsonl")
+        new_step["data"]["out"] = {new_step["name"]+"_results": "runs/" + state["name"] + "/data/" + new_step["name"] + "_results.jsonl"}
+        state["nodes"].append(create_markers(new_step["name"]+"_results", new_step["data"]["out"][new_step["name"]+"_results"], output_markers["type"]))
+        new_step["status"] = "completed"
+        state["status"] = "completed"
 
     state["state_steps"].append(new_step)
     

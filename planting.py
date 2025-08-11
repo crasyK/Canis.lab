@@ -1,6 +1,7 @@
-from lib.state_managment import create_state, start_seed_step, complete_running_step, use_tool, get_markers
-from lib.tools.llm import get_available_llm_tools, prepare_data, validate_markers
-from lib.tools.code import get_available_code_tools, prepare_tool_use, validate_code_tool_use
+from lib.state_managment import create_state, start_seed_step, complete_running_step, use_llm_tool,use_code_tool, get_markers
+from lib.tools.llm import get_available_llm_tools, prepare_data
+from lib.tools.code import get_available_code_tools, prepare_tool_use
+from lib.tools.global_func import get_type, check_data_type, has_connection
 import os
 
 state_directory = "runs/"
@@ -11,12 +12,35 @@ def valid_input_loop(valid_options):
         selected_option = input(f"Select an option from {valid_options}: ").strip().lower()
     return selected_option
 
-def map_markers(available_markers, tool_markers):
+def valid_data_input_loop(availabe_markers, needed_marker):
+    selected_marker = None
+    while selected_marker not in [m["name"] for m in availabe_markers]:
+        selected_marker = input(f"Select a marker from {[(m["name"],m["type"]) for m in availabe_markers]}: ").strip()
+        if selected_marker not in [m["name"] for m in availabe_markers]:
+            print(f"Invalid marker: {selected_marker}. Please try again.")
+        elif has_connection(availabe_markers[selected_marker],next(iter(needed_marker.values()))):
+            return selected_marker
+        else:
+            print(f"Marker {selected_marker} does not match the required type {next(iter(needed_marker.values()))}. Please try again.")
+
+def valid_single_input_loop(valid_options):
+    content = None
+    while get_type(content) not in valid_options:
+        content = input(f"Enter a valid input of the type {valid_options}: ").strip()
+        if get_type(content) not in valid_options:
+            print(f"Invalid input type: {get_type(content)}. Please try again.")
+    return content
+
+
+
+def reference_map_markers(available_markers, tool_markers):
     mapped_data = {}
-    for needed_marker in tool_markers:
-        print(f"For the marker: {needed_marker}:")
-        selected_marker = valid_input_loop([m["name"] for m in available_markers])
-        mapped_data[needed_marker] = [m["file_name"] for m in available_markers if m["name"] == selected_marker][0]
+    for needed_marker in tool_markers.keys():
+        print(f"For the marker: {needed_marker}, type of: {tool_markers[needed_marker]}:")
+        if "single" in tool_markers[needed_marker].values():    
+            mapped_data[needed_marker] = valid_single_input_loop(tool_markers[needed_marker].keys())
+        else:   
+            mapped_data[needed_marker] = valid_data_input_loop(available_markers, tool_markers[needed_marker])
     return mapped_data
         
 
@@ -52,18 +76,12 @@ while command != "exit":
         type = valid_input_loop(["llm", "code"])
         if type == "llm":
             tool_name = valid_input_loop(get_available_llm_tools())
-            data = map_markers(get_markers(state_file_path), prepare_data(tool_name)["in"])
-            if validate_markers(tool_name, data):
-                state_file = use_tool(state_file_path, step_name, tool_name, "llm", data)
-            else:
-                print("Invalid marker mapping. Please try again.")
+            data = reference_map_markers(get_markers(state_file_path), prepare_data(tool_name)["in"])
+            state_file = use_llm_tool(state_file_path, step_name, tool_name, data)
         else:
             tool_name = valid_input_loop(get_available_code_tools())
-            data = map_markers(get_markers(state_file_path), prepare_tool_use(tool_name)["in"])
-            if validate_code_tool_use(tool_name,data):
-                state_file = use_tool(state_file_path, step_name, tool_name, "code", data)
-            else:
-                print("Invalid marker mapping. Please try again.")
+            data = reference_map_markers(get_markers(state_file_path), prepare_tool_use(tool_name)["in"])
+            state_file = use_code_tool(state_file_path, step_name, tool_name, data)
     else:
         print("Invalid command. Please try again.")
     print("\nNext command:")

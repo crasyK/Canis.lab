@@ -11,5 +11,44 @@ def get_type(item):
                 else:
                     return "str"
             except (json.JSONDecodeError, TypeError):
+                if isinstance(item, int):
+                    return "int"
                 return "str"
     return "unknown"
+
+valid_data_types = [
+    {"str":"single"}, {"json":"single"}, {"list":"single"}, {"int":"single"},
+    {"str","data"}, {"json":"data"}, {"list":"data"}, {"int":"data"},
+]
+
+def check_data_type(data):
+    state = {
+        "data_type": "unknown",
+        "architecture": "unknown",
+    }
+    try: 
+        with open(data, 'r') as file:
+            data_json = json.load(file)
+        state["architecture"] = "data"
+        for key, value in data_json.items():
+            if get_type(value) not in [d["single"] for d in valid_data_types]:
+                raise ValueError(f"Invalid data type for key '{key}': {get_type(value)}")
+
+    except (FileNotFoundError, json.JSONDecodeError):
+        state["architecture"] = "single"
+        state["data_type"] = get_type(data)
+
+    finally:
+        if state["architecture"] == "unknown" or state["data_type"] == "unknown":
+            raise ValueError("Data type could not be determined.")
+        if {state["architecture"]: state["data_type"]} not in valid_data_types:
+            raise ValueError(f"Invalid data type combination: {state['architecture']} - {state['data_type']}")
+    
+    return {state["data_type"]:state["architecture"]}
+
+def has_connection(origin, ending): # Both are part of the valid markers collection
+    for key, value in origin.items():
+        if key in ending and ending[key] == value:
+            return True
+    return False
+    
