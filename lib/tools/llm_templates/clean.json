@@ -2,19 +2,19 @@
     "step": {
         "name": "clean",
         "data_markers": {
-            "in":  {"criteria_verbose":"str","criteria_array":"list","dirty_data":"str"},
+            "in":  {"__criteria_verbose__":"str","__criteria_array__":"list","__dirty_data__":"str"},
             "out": {"data_classification":"json_data"}
         }
     },
     "call": {
-        "custom_id": "{index}",
+        "custom_id": "__index__",
         "method": "POST",
         "url": "/v1/responses",
         "body": {
             "model": "gpt-5",
             "input": [
-                {"role": "system", "content": "Decide if following data fullfills the following criteria: {criteria}. Return a JSON object with the following fields: 'status' (select one of {criteria_array} according to the criteria)"},
-                {"role": "user", "content": "{dirty_data}"}
+                {"role": "system", "content": "Decide if following data fullfills the following criteria: __criteria__. Return a JSON object with the following fields: 'status' (select one of __criteria_array__ according to the criteria)"},
+                {"role": "user", "content": "__dirty_data__"}
             ],
             "text": {
                 "format": {
@@ -29,7 +29,7 @@
                             "status": {
                             "type": "string",
                             "description": "Classification status of the data.",
-                            "enum": {criteria_array}
+                            "enum": __criteria_array__
                             }
                         },
                         "required": ["status"],

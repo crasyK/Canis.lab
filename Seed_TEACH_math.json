@@ -16,14 +16,14 @@
         "conversations": "3"
     },
     "call":{
-        "custom_id": "{index}",
+        "custom_id": "__index__",
         "method": "POST",
         "url": "/v1/responses",
         "body": {
             "model": "gpt-5-mini",
-            "messages": [
+            "input": [
                 {"role": "system", "content": "You are an expert math educator creating dialogues to help students understand concepts using different teaching methods."},
-                {"role": "user", "content": "{prompt}"}
+                {"role": "user", "content": "__prompt__"}
             ]
         }
     }

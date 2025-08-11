@@ -80,10 +80,15 @@ def validate_code_tool_use(tool_name, data):
     for key, expected_type in input_markers.items():
         if key not in data:
             raise ValueError(f"Missing input '{key}' for tool '{tool_name}'.")
-        if get_type(data[key]) != expected_type:
-            raise ValueError(f"Input '{key}' for tool '{tool_name}' must be of type {expected_type}.")
-
-    return "code"
+        with open(data[key], 'r') as file:
+            data_json = json.load(file)
+        if length_of_data == 0: length_of_data = len(data_json)
+        elif length_of_data != len(data_json):
+            raise ValueError("All input data files must have the same number of entries.")
+        for key, value in data_json.items():
+            if get_type(value) != expected_type:
+                raise ValueError(f"Data type mismatch for key '{key}': expected {expected_type}, got {get_type(value)}")
+    return True
 
 def use_code_tool(tool_name, data):
     fn = REGISTRY.get(tool_name)

@@ -2,19 +2,19 @@
     "step": {
         "name": "derive",
         "data_markers": {
-            "in": {"context":"str","num_conversations":"str","num_turns":"str","ai_role":"str","user_role":"str"},
+            "in": {"__context__":"str","__num_conversations__":"str","__num_turns__":"str","__ai_role__":"str","__user_role__":"str"},
             "out": {"derived_data":"str"}
         }
     },
     "call": {
-        "custom_id": "{index}",
+        "custom_id": "__index__",
         "method": "POST",
         "url": "/v1/responses",
         "body": {
             "model": "gpt-5-mini",
             "input": [
-                {"role": "system", "content": "From the following context, derive {num_conversations} conversation(s) of {ai_role} and {user_role} of {num_turns} turns."},
-                {"role": "user", "content": "{context}"}
+                {"role": "system", "content": "From the following context, derive __num_conversations__ conversation(s) of __ai_role__ and __user_role__ of __num_turns__ turns."},
+                {"role": "user", "content": "__context__"}
             ]
         }
     }

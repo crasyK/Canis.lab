@@ -28,7 +28,7 @@ def prepare_data(tool_name):
 def validate_markers(tool_name, data):
     template = get_tool_template(tool_name)
     step_data = template["step"]
-    if list(data.keys()) != step_data["data_markers"]["in"]:
+    if list(data.keys()) != list(step_data["data_markers"]["in"].keys()):
         raise ValueError("Input data markers do not match the expected markers in the template.")
     
     length_of_data = 0
@@ -45,7 +45,7 @@ def validate_markers(tool_name, data):
             if get_type(value) != expected_type:
                 raise ValueError(f"Data type mismatch for key '{key}': expected {expected_type}, got {get_type(value)}")
     
-    return "llm"
+    return True
 
 
 # Finally generate the batch file if the markers are valid
@@ -68,10 +68,12 @@ def generate_llm_tool_batch_file(tool_name, data, file_to_save):
             template = json.load(file)
             request = template["call"]
             mapped_data =dict(zip(list(separated_data.keys()), column))
-            request["custom_id"] = request["custom_id"].format_map({"index": i})
-            request= request.format_map(mapped_data)
-            batch.append(request)
-    
+            final_request = json.dumps(request)
+            final_request = final_request.replace("__index__", str(i))
+            for placeholder, value in mapped_data.items():
+                final_request = final_request.replace(placeholder, value.replace("\n", "\\n").replace('"', '\\"'))
+            batch.append(json.loads(final_request))
+
     with open(file_to_save, 'w') as file:
         for obj in batch:
             file.write(json.dumps(obj) + '\n')

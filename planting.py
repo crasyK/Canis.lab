@@ -3,7 +3,7 @@ from lib.tools.llm import get_available_llm_tools, prepare_data, validate_marker
 from lib.tools.code import get_available_code_tools, prepare_tool_use, validate_code_tool_use
 import os
 
-state_directory = "runs"
+state_directory = "runs/"
 
 def valid_input_loop(valid_options):
     selected_option = None
@@ -14,8 +14,9 @@ def valid_input_loop(valid_options):
 def map_markers(available_markers, tool_markers):
     mapped_data = {}
     for needed_marker in tool_markers:
-        selected_marker = valid_input_loop(available_markers)
-        mapped_data[needed_marker] = selected_marker
+        print(f"For the marker: {needed_marker}:")
+        selected_marker = valid_input_loop([m["name"] for m in available_markers])
+        mapped_data[needed_marker] = [m["file_name"] for m in available_markers if m["name"] == selected_marker][0]
     return mapped_data
         
 
@@ -36,28 +37,33 @@ while command != "exit":
         print(f"Run created: {state['name']}")
     
     elif command == "seed":
-        state_file_name = valid_input_loop([f for f in os.listdir(state_directory)])
+        state_file_path = state_directory + valid_input_loop([f for f in os.listdir(state_directory)]) +"/state.json"
         seed_file = input("Enter seed file path: ").strip()
-        state_file = start_seed_step(state_file_name+"/state.json", seed_file)
+        state_file = start_seed_step(state_file_path, seed_file)
         print(f"Seed step started: {state_file}")
     
     elif command == "check":
-        state_file_name = valid_input_loop([f for f in os.listdir(state_directory)])
-        complete_running_step(state_file_name+"/state.json")
+        state_file_path = state_directory + valid_input_loop([f for f in os.listdir(state_directory)]) +"/state.json"
+        complete_running_step(state_file_path)
 
     elif command == "tool":
-        state_file_name = valid_input_loop([f for f in os.listdir(state_directory)])
+        state_file_path = state_directory + valid_input_loop([f for f in os.listdir(state_directory)]) +"/state.json"
         step_name = input("Enter custom name of step: ").strip()
         type = valid_input_loop(["llm", "code"])
         if type == "llm":
             tool_name = valid_input_loop(get_available_llm_tools())
-            data = map_markers(get_markers(state_file_name+"/state.json"), prepare_data(tool_name)["in"])
-            state_file = use_tool(state_file_name+"/batch/"+step_name+".json", step_name, tool_name, "llm",data)
+            data = map_markers(get_markers(state_file_path), prepare_data(tool_name)["in"])
+            if validate_markers(tool_name, data):
+                state_file = use_tool(state_file_path, step_name, tool_name, "llm", data)
+            else:
+                print("Invalid marker mapping. Please try again.")
         else:
             tool_name = valid_input_loop(get_available_code_tools())
-            data = map_markers(get_markers(state_file_name+"/state.json"), prepare_tool_use(tool_name)["in"])
-            state_file = use_tool(state_file_name+"/batch/"+step_name+".json", step_name, tool_name, "code", data)
-    
+            data = map_markers(get_markers(state_file_path), prepare_tool_use(tool_name)["in"])
+            if validate_code_tool_use(data, prepare_tool_use(tool_name)["in"]):
+                state_file = use_tool(state_file_path, step_name, tool_name, "code", data)
+            else:
+                print("Invalid marker mapping. Please try again.")
     else:
         print("Invalid command. Please try again.")
     print("\nNext command:")

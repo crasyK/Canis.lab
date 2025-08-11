@@ -32,9 +32,12 @@ def generate_seed_batch_file(json_file,file_to_save):
     for index, prompt in enumerate(batch):
         with open(json_file, 'r') as f:
             data = json.load(f)
-            task = data["call"]
-            task = task.format_map({"index":index})
-            task = task.format_map({"prompt": prompt})
-            tasks.append(task)
-    
+            task = json.dumps(data["call"])
+            task = task.replace("__prompt__", prompt).replace("__index__", str(index))
+            tasks.append(json.loads(task))
+
+    with open(file_to_save, 'w') as f:
+        for task in tasks:
+            f.write(json.dumps(task) + '\n')
+
     return file_to_save

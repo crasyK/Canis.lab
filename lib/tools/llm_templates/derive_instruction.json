@@ -1,0 +1,33 @@
+{
+  "step": {
+    "name": "derive_instruction",
+    "data_markers": {
+      "in": {
+        "__context__": "str",
+        "__num_instructions__": "str",
+        "__task_description__": "str"
+      },
+      "out": {
+        "derived_data": "str"
+      }
+    }
+  },
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST",
+    "url": "/v1/responses",
+    "body": {
+      "model": "gpt-5-mini",
+      "input": [
+        {
+          "role": "system",
+          "content": "From the following context, derive __num_instructions__ instruction(s) for the task: __task_description__."
+        },
+        {
+          "role": "user",
+          "content": "__context__"
+        }
+      ]
+    }
+  }
+}

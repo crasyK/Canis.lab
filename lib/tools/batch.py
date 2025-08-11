@@ -16,7 +16,7 @@ def upload_batch(batch_filename):
   
   batch_job = client.batches.create(
       input_file_id=batch_file.id,
-      endpoint="/v1/chat/completions",
+      endpoint="/v1/responses",
       completion_window="24h"
   )
   return batch_job.id
@@ -32,7 +32,6 @@ def download_batch_results(batch_id, result_file_name):
   batch_job = client.batches.retrieve(batch_id)
   result_file_id = batch_job.output_file_id
   result = client.files.content(result_file_id).content
-
   with open(result_file_name, 'wb') as file:
       file.write(result)
 
@@ -44,10 +43,10 @@ def convert_batch_in_to_json_data(batch_file, input_sys_file, input_user_file):
     input_data_B = {}
     for b in batch:
         input_data_A.update({
-            b["custom_id"]: b["body"]["messages"][0]["content"]
+            b["custom_id"]: b["body"]["input"][0]["content"]
         })
         input_data_B.update({
-            b["custom_id"]: b["body"]["messages"][1]["content"]
+            b["custom_id"]: b["body"]["input"][1]["content"]
         })
     
     with open(input_sys_file, 'w') as f:
@@ -62,7 +61,7 @@ def convert_batch_out_to_json_data(batch_file, output_file):
             
     output_data = {}
     for b in batch:
-        output_data[b["custom_id"]] = b["response"]["body"]["choices"][0]["message"]["content"]
+        output_data[b["custom_id"]] = b["response"]["body"]["output"][1]["content"][0]["text"]
 
     with open(output_file, 'w') as f:
         json.dump(output_data, f)

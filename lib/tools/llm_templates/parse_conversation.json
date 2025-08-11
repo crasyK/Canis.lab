@@ -2,12 +2,12 @@
   "step": {
     "name": "parse",
     "data_markers": {
-      "in": {"data":"str"},
+      "in": {"__data__":"str"},
       "out": {"dialogues": "json_data"}
     }
   },
 "call": {
-  "custom_id": "{index}",
+  "custom_id": "__index__",
   "method": "POST",
   "url": "/v1/responses",
   "body": {
@@ -19,7 +19,7 @@
       },
       {
         "role": "user",
-        "content": "{data}"
+        "content": "__data__"
       }
     ],
     "text": {

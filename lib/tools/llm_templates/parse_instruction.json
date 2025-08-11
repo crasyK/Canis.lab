@@ -1,0 +1,64 @@
+{
+  "step": {
+    "name": "parse_instruction",
+    "data_markers": {
+      "in": {
+        "__data__": "str"
+      },
+      "out": {
+        "instruction_data": "json_data"
+      }
+    }
+  },
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST",
+    "url": "/v1/responses",
+    "body": {
+      "model": "gpt-5-nano",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are parsing raw text into a structured JSON format. The following is a template for the instruction: {\"Instruction\": \"\", \"Input\": \"\", \"Output\": \"\"}"
+        },
+        {
+          "role": "user",
+          "content": "__data__"
+        }
+      ],
+      "text": {
+        "format": {
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "instruction_data",
+              "strict": true,
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "Instruction": {
+                    "type": "string",
+                    "description": "Task we want the model to perform."
+                  },
+                  "Input": {
+                    "type": "string",
+                    "description": "Optional, but useful, it will essentially be the user's query."
+                  },
+                  "Output": {
+                    "type": "string",
+                    "description": "The expected result of the task and the output of the model."
+                  }
+                },
+                "required": [
+                  "Instruction",
+                  "Output"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
