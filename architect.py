@@ -1,140 +1,335 @@
 import os
+import json
 import openai
 from dotenv import load_dotenv
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+import re
 
-# --- Configuration ---
-# To run this script, create a file named .env in the same directory and add the following line:
-# OPENAI_API_KEY='your_key_here'
-# You also need to install the dotenv library: pip install python-dotenv
+class SeedFileArchitect:
+    """Enhanced Seed File Architect with improved functionality and user experience."""
+    
+    def __init__(self):
+        self.client = None
+        self.messages = []
+        self.current_seed = {}
+        self.conversation_history = []
+        
+        # Enhanced system prompt
+        self.SYSTEM_PROMPT = """**You are an Elite Seed File Architect AI** - a specialized expert in designing JSON seed files for synthetic data generation. You are the strategic partner who transforms user ideas into perfectly structured, production-ready seed files.
 
-# The system prompt that defines the AI's role, personality, and instructions.
-SYSTEM_PROMPT = """**You are a Seed File Architect AI.** Your sole purpose is to act as an expert partner to the user, guiding them through a structured, creative process to build a JSON "seed file" for synthetic data generation. You are not the data generator; you are the architect of the plan.
+**CORE MISSION:** Guide users through a methodical, creative process to build comprehensive JSON seed files that generate high-quality synthetic datasets.
 
-**Your primary directives are:**
-1.  **Understand the "Why":** Never start by asking about variables. Always start by understanding the user's goal. Ask probing questions like: "What is the ultimate purpose of this dataset?", "What problem will this synthetic data help solve?", or "Who is the end-user of the application this data is for?" The answer to this will guide all subsequent suggestions.
-2.  **Guide the Variable Creation:** Based on the user's goal, proactively suggest and collaboratively define the `variables`.
-    *   Identify the core axes of variation in their dataset.
-    *   Suggest creative and diverse options for each variable. For a customer service bot, you might suggest variables like `customer_mood` (e.g., "irate," "confused," "pleased") or `product_category` (e.g., "electronics," "apparel," "home_goods").
-    *   Think about efficient pairings. If a user wants to test a bot's ability to handle complex queries, you might suggest pairing a `technical_jargon` variable with a `customer_expertise_level` variable.
-3.  **Construct the Templates:** Guide the user in writing the `prompt` and `instructions` within the `constants` section. Constantly remind them how the `variables` they just created will be injected as placeholders (e.g., `{variable_name}`).
-4.  **Adhere to the Structure:** The final output MUST be a single JSON object that strictly follows this structure:
+**ENHANCED DIRECTIVES:**
 
-    ```json
-    {
-      "variables": {
-        // key-value pairs where values are arrays of strings
-      },
-      "constants": {
-        "prompt": "...",
-        "instructions": "...",
-        // other user-defined constants
-      },
-      "call": {
-        "custom_id": "__index__",
-        "method": "POST",
-        "url": "/v1/responses",
-        "body": {
-          "model": "...",
-          "input": [
-            {"role": "system", "content": "..."},
-            {"role": "user", "content": "__prompt__"}
-          ]
-        }
-      }
-    }
-    ```
-5.  **Maintain a Collaborative Tone:** You are a partner, not a tool. Use phrases like "That's a great start. What if we also considered...", "Based on what you've said, it seems like the key variables might be...", and "Let's review what we have so far."
+1. **Deep Goal Discovery:** 
+   - Start with "What specific problem will this synthetic data solve?"
+   - Understand the end-user, use case, and success metrics
+   - Ask about data volume, complexity, and quality requirements
+   - Identify potential edge cases or challenging scenarios to include
 
-### Example Interaction Flow
+2. **Strategic Variable Architecture:**
+   - Design variables that create meaningful variation and coverage
+   - Suggest 3-5 core variables that capture the essential dimensions
+   - Recommend nested structures when appropriate (e.g., hierarchical categories)
+   - Consider interaction effects between variables
+   - Propose both obvious and non-obvious variables that add richness
 
-Here’s how a conversation with this bot should feel:
+3. **Advanced Template Engineering:**
+   - Craft prompts that leverage all variables effectively
+   - Design instructions that balance realism with diversity
+   - Include specific quality controls and constraints
+   - Suggest role definitions that enhance output quality
 
-**Bot:** Hello! I'm the Seed File Architect. I'm here to help you design the perfect blueprint for your synthetic dataset. Before we dive into the details, could you tell me a bit about the high-level goal? **What is this dataset going to be used for?**
+4. **Quality Assurance:**
+   - Validate that variables will produce sufficient combinations
+   - Check for potential bias or gaps in coverage
+   - Ensure the seed file will scale appropriately
+   - Recommend testing strategies
 
-**User:** I'm building a dataset to train a chatbot that helps people write effective cover letters.
+5. **Progressive Refinement:**
+   - Build the seed file iteratively
+   - Validate each section before moving to the next
+   - Offer multiple options and let user choose
+   - Provide examples and rationale for suggestions
 
-**Bot:** That's a fantastic use case. So, we're aiming for dialogues that help a user improve their writing. To create a rich dataset, we need to think about what aspects of a cover letter could vary.
-
-I suggest we start with two main `variables`: `target_industry` and `user_weakness`. For `target_industry`, we could include things like "Tech," "Healthcare," and "Creative Arts." For `user_weakness`, we could have "Too generic," "Lacks confidence," or "Poor structure."
-
-What do you think of those? Do you have other ideas for variables we should include?
-
-**User:** I like those. Let's also add a `job_seniority` variable, like "Internship," "Mid-Level," and "Senior."
-
-**Bot:** Excellent addition. That will add a crucial dimension. Okay, let's summarize our `variables` section.
-
+**MANDATORY JSON STRUCTURE:**
 ```json
-"variables": {
-  "target_industry": ["Tech", "Healthcare", "Creative Arts"],
-  "user_weakness": ["Too generic", "Lacks confidence", "Poor structure"],
-  "job_seniority": ["Internship", "Mid-Level", "Senior"]
+{
+  "variables": {
+    // Nested structures supported: objects with arrays or nested objects
+  },
+  "constants": {
+    "prompt": "...",
+    "instructions": "...",
+    // Additional constants as needed
+  },
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST", 
+    "url": "/v1/responses",
+    "body": {
+      "model": "...",
+      "input": [
+        {"role": "system", "content": "..."},
+        {"role": "user", "content": "__prompt__"}
+      ]
+    }
+  }
 }
 ```
 
-Now, let's move on to the `constants`. We'll need to craft a prompt that uses these variables. How does this sound for a start? "Generate a dialogue where an AI career coach helps a user writing a cover letter for a {job_seniority} role in the {target_industry} industry, focusing on fixing a draft that is {user_weakness}."
+**INTERACTION STYLE:**
+- Ask one focused question at a time
+- Provide specific, actionable suggestions
+- Show examples and explain reasoning
+- Validate understanding before proceeding
+- Offer to review/refine at each step
 
-**(The conversation continues until all sections are filled, and then the bot generates the final, complete JSON file.)**"""
+**COMMANDS YOU RESPOND TO:**
+- "show current" - Display the current seed file progress
+- "validate" - Check the current structure for issues
+- "examples" - Show example variables for the domain
+- "finalize" - Generate the complete JSON seed file
+
+Begin every conversation by understanding their specific use case and goals."""
+
+    def initialize_client(self) -> bool:
+        """Initialize OpenAI client with error handling."""
+        load_dotenv()
+        
+        try:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                print("❌ Error: OPENAI_API_KEY not found in .env file or environment variables.")
+                print("Please create a .env file with your OpenAI API key and restart.")
+                return False
+                
+            self.client = openai.OpenAI(api_key=api_key)
+            
+            # Test the connection
+            test_response = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": "Hello"}],
+                max_tokens=10
+            )
+            
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error initializing OpenAI client: {e}")
+            return False
+
+    def print_banner(self):
+        """Print welcome banner."""
+        print("🏗️" + "="*60 + "🏗️")
+        print("         SEED FILE ARCHITECT - Enhanced Edition")
+        print("    Your Expert Partner in Synthetic Data Design")
+        print("="*64)
+        print("\n📋 AVAILABLE COMMANDS:")
+        print("  • 'show current' - View current seed file progress")
+        print("  • 'validate' - Check structure for issues") 
+        print("  • 'examples' - Get domain-specific examples")
+        print("  • 'finalize' - Generate complete JSON")
+        print("  • 'save' - Save current progress")
+        print("  • 'quit' or 'exit' - End session")
+        print("\n" + "="*64 + "\n")
+
+    def handle_special_commands(self, user_input: str) -> bool:
+        """Handle special commands. Returns True if command was handled."""
+        command = user_input.lower().strip()
+        
+        if command == "show current":
+            self.show_current_progress()
+            return True
+        elif command == "validate":
+            self.validate_current_structure()
+            return True
+        elif command == "save":
+            self.save_progress()
+            return True
+        elif command == "examples":
+            print("📝 Sending examples request to AI...")
+            return False  # Let AI handle this
+        elif command == "finalize":
+            print("🎯 Requesting final seed file generation...")
+            return False  # Let AI handle this
+            
+        return False
+
+    def show_current_progress(self):
+        """Display current seed file progress."""
+        if not self.current_seed:
+            print("📋 No seed file progress yet. Start by describing your use case!")
+            return
+            
+        print("\n🔍 CURRENT SEED FILE PROGRESS:")
+        print("="*40)
+        print(json.dumps(self.current_seed, indent=2))
+        print("="*40 + "\n")
+
+    def validate_current_structure(self):
+        """Validate the current seed file structure."""
+        if not self.current_seed:
+            print("⚠️  No seed file to validate yet.")
+            return
+            
+        issues = []
+        
+        # Check required sections
+        if "variables" not in self.current_seed:
+            issues.append("Missing 'variables' section")
+        if "constants" not in self.current_seed:
+            issues.append("Missing 'constants' section")
+        if "call" not in self.current_seed:
+            issues.append("Missing 'call' section")
+            
+        # Check variables structure
+        if "variables" in self.current_seed:
+            vars_dict = self.current_seed["variables"]
+            if not isinstance(vars_dict, dict) or len(vars_dict) == 0:
+                issues.append("Variables section should be a non-empty dictionary")
+                
+        # Check constants
+        if "constants" in self.current_seed:
+            constants = self.current_seed["constants"]
+            if "prompt" not in constants:
+                issues.append("Missing 'prompt' in constants")
+                
+        if issues:
+            print("⚠️  VALIDATION ISSUES FOUND:")
+            for issue in issues:
+                print(f"  • {issue}")
+        else:
+            print("✅ Seed file structure looks good!")
+
+    def extract_json_from_response(self, response: str) -> Optional[Dict[Any, Any]]:
+        """Extract JSON from AI response."""
+        # Look for JSON code blocks
+        json_pattern = r'```json\s*(\{.*?\})\s*```'
+        matches = re.findall(json_pattern, response, re.DOTALL)
+        
+        for match in matches:
+            try:
+                return json.loads(match)
+            except json.JSONDecodeError:
+                continue
+                
+        # Look for raw JSON
+        try:
+            # Find potential JSON by looking for balanced braces
+            start = response.find('{')
+            if start != -1:
+                brace_count = 0
+                for i, char in enumerate(response[start:], start):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            potential_json = response[start:i+1]
+                            return json.loads(potential_json)
+        except:
+            pass
+            
+        return None
+
+    def save_progress(self, filename: Optional[str] = None):
+        """Save current progress to file."""
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"seed_progress_{timestamp}.json"
+            
+        try:
+            with open(filename, 'w') as f:
+                json.dump({
+                    "seed_file": self.current_seed,
+                    "conversation_length": len(self.messages),
+                    "timestamp": datetime.now().isoformat()
+                }, f, indent=2)
+            print(f"💾 Progress saved to {filename}")
+        except Exception as e:
+            print(f"❌ Error saving progress: {e}")
+
+    def get_ai_response(self, user_input: str) -> str:
+        """Get response from AI with error handling."""
+        try:
+            self.messages.append({"role": "user", "content": user_input})
+            
+            response = self.client.chat.completions.create(
+                model="gpt-4o-mini",  # Using the more capable model
+                messages=self.messages,
+                temperature=0.7,
+                max_tokens=2000
+            )
+            
+            ai_response = response.choices[0].message.content
+            self.messages.append({"role": "assistant", "content": ai_response})
+            
+            # Try to extract and update current seed file
+            extracted_json = self.extract_json_from_response(ai_response)
+            if extracted_json:
+                self.current_seed = extracted_json
+                
+            return ai_response
+            
+        except openai.APIError as e:
+            return f"❌ API Error: {e}\nPlease check your connection and try again."
+        except Exception as e:
+            return f"❌ Unexpected error: {e}"
+
+    def run(self):
+        """Main application loop."""
+        if not self.initialize_client():
+            return
+            
+        self.print_banner()
+        
+        # Initialize conversation
+        self.messages = [{"role": "system", "content": self.SYSTEM_PROMPT}]
+        
+        print("🤖 Architect AI: Hello! I'm your enhanced Seed File Architect. Let's build something amazing together.")
+        print("\n💡 Let's start with the fundamentals: **What specific problem will this synthetic dataset solve?**")
+        print("   Tell me about your use case, target application, and goals.\n")
+        
+        while True:
+            try:
+                user_input = input("👤 You: ").strip()
+                
+                if user_input.lower() in ["quit", "exit"]:
+                    print("\n🤖 Architect AI: Thanks for building with me! Your seed file architecture session is complete. 🏗️")
+                    if self.current_seed:
+                        save_final = input("💾 Save final seed file? (y/n): ").lower() == 'y'
+                        if save_final:
+                            self.save_progress("final_seed_file.json")
+                    break
+                    
+                if not user_input:
+                    print("🤔 Please enter your message or 'quit' to exit.")
+                    continue
+                    
+                # Handle special commands
+                if self.handle_special_commands(user_input):
+                    continue
+                    
+                # Get AI response
+                print("\n🤖 Architect AI: ", end="")
+                ai_response = self.get_ai_response(user_input)
+                print(ai_response + "\n")
+                
+            except KeyboardInterrupt:
+                print("\n\n🤖 Architect AI: Session interrupted. Goodbye! 👋")
+                break
+            except Exception as e:
+                print(f"\n❌ Unexpected error: {e}")
+                print("Please try again or type 'quit' to exit.")
 
 def main():
-    """Main function to run the chat application."""
-    # Load environment variables from .env file
-    load_dotenv()
-    try:
-        # Attempt to load the API key from environment variables
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            print("Error: OPENAI_API_KEY not found in .env file or environment variables.")
-            print("Please create a .env file and add your key, then restart the script.")
-            return
-        client = openai.OpenAI(api_key=api_key)
-    except Exception as e:
-        print(f"Error initializing OpenAI client: {e}")
-        return
-
-    # Initialize the conversation history with the system prompt
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-
-    print("--- Seed File Architect Initialized ---")
-    print("Type 'quit' or 'exit' to end the session.")
-    print("Let's begin the conversation...\n")
-
-    # Start the conversation loop
-    while True:
-        try:
-            # Get user input from the command line
-            user_input = input("You: ")
-
-            # Check for exit command
-            if user_input.lower() in ["quit", "exit"]:
-                print("\nArchitect AI: Goodbye!")
-                break
-
-            messages.append({"role": "user", "content": user_input})
-
-            response = client.chat.completions.create(
-                model="gpt-5-mini",
-                messages=messages
-            )
-
-            # Extract the AI's response
-            ai_response = response.choices[0].message.content
-
-            print(f"\nArchitect AI: {ai_response}\n")
-
-            # Append AI response to the history for context
-            messages.append({"role": "assistant", "content": ai_response})
-
-        except openai.APIError as e:
-            print(f"\nAn API error occurred: {e}")
-            print("Please check your connection or API key and try again.")
-        except KeyboardInterrupt:
-            print("\n\nArchitect AI: Session interrupted. Goodbye!")
-            break
-        except Exception as e:
-            print(f"\nAn unexpected error occurred: {e}")
-            break
+    """Entry point for the application."""
+    architect = SeedFileArchitect()
+    architect.run()
 
 if __name__ == "__main__":
-    # To run this script, you need to install the required libraries:
-    # pip install openai python-dotenv
+    # Required dependencies:
+    # pip install openai
     main()
