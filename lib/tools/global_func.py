@@ -6,7 +6,7 @@ def get_type(item):
     elif isinstance(item, str):
             try:
                 parsed = json.loads(item)
-                return "json_data"
+                return "json"
             except (json.JSONDecodeError, TypeError):
                 if isinstance(item, int):
                     return "int"
