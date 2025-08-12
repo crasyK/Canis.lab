@@ -1,5 +1,10 @@
 import json
-available_tools = {"derive_conversation":"lib/tools/llm_templates/derive_conversation.json", "parse_conversation":"lib/tools/llm_templates/parse_conversation.json", "clean":"lib/tools/llm_templates/clean.json"}
+available_tools = {
+    "derive_conversation":"lib/tools/llm_templates/derive_conversation.json",
+    "parse_conversation":"lib/tools/llm_templates/parse_conversation.json", 
+    "clean":"lib/tools/llm_templates/clean.json", 
+    "derive_instructions":"lib/tools/llm_templates/derive_instructions.json", 
+    "parse_instructions":"lib/tools/llm_templates/parse_instructions.json"}
 
 def get_available_llm_tools():
     return list(available_tools.keys())

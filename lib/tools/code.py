@@ -3,10 +3,10 @@ from datasets import Dataset
 from typing import Any, Callable
 
 available_tools_global = {
-    "combine": {
+    "merge": {
         "data_markers": {
             "in": {"prefix_data": {"json":"data"},"sufix_data":{"json":"data"}},
-            "out": {"derived_data":{"json":"data"}}
+            "out": {"merged_data":{"json":"data"}}
         }},
     "bind": {
         "data_markers": {
@@ -48,24 +48,54 @@ available_tools_global = {
 def get_available_code_tools():
     return available_tools_global.keys()
 
-def combine(prefix_data, sufix_data):
-    combined = dict(sufix_data)  # Copy to avoid in-place modification
+def merge(prefix_data, sufix_data):
+    """Merges two dictionaries into a list of merged lists based on flexible rules."""
+    # Get all unique keys from both dictionaries
+    all_keys = set(prefix_data.keys()) | set(sufix_data.keys())
+    
+    final_list = []
+    
+    for key in sorted(all_keys):
+        prefix_value = prefix_data.get(key)
+        suffix_value = sufix_data.get(key)
 
-    for key, prefix_val in prefix_data.items():
-        if key in combined:
-            sufix_val = combined[key]
-            # If sufix_val is a list, insert prefix_val as first element
-            if isinstance(sufix_val, list):
-                combined[key] = [prefix_val] + sufix_val
-            # If both values are dicts, merge them (prefix_data takes precedence)
-            elif isinstance(sufix_val, dict) and isinstance(prefix_val, dict):
-                combined[key] = {**prefix_val, **sufix_val}
-            # Otherwise, just replace
+        # Parse prefix_value if it's a JSON string
+        if isinstance(prefix_value, str):
+            try:
+                prefix_value = json.loads(prefix_value)
+            except (json.JSONDecodeError, TypeError):
+                pass # Keep as is if not valid JSON
+
+        # Determine the merged result for the key
+        if prefix_value is not None and suffix_value is not None:
+            is_prefix_list = isinstance(prefix_value, list)
+            is_suffix_list = isinstance(suffix_value, list)
+
+            if is_prefix_list and is_suffix_list:
+                # Both are lists: concatenate them
+                merged_item = prefix_value + suffix_value
+            elif is_suffix_list:
+                # Suffix is a list: insert prefix at the beginning
+                merged_item = [prefix_value] + suffix_value
+            elif is_prefix_list:
+                # Prefix is a list: insert suffix at the beginning
+                merged_item = [suffix_value] + prefix_value
             else:
-                combined[key] = prefix_val
+                # Neither is a list: create a new list
+                merged_item = [prefix_value, suffix_value]
+        elif prefix_value is not None:
+            # Only prefix exists
+            merged_item = prefix_value if isinstance(prefix_value, list) else [prefix_value]
+        elif suffix_value is not None:
+            # Only suffix exists
+            merged_item = suffix_value if isinstance(suffix_value, list) else [suffix_value]
         else:
-            combined[key] = prefix_val
-    return combined
+            continue # Should not happen with the logic above
+            
+        final_list.append(merged_item)
+        
+    return final_list
+
 
 def bind(structured_content, key_name):
     data = []
@@ -110,14 +140,11 @@ def percentage(data, total):
     return round((count / total) * 100)
 
 def expand(single, data_to_adapt_to):
-    return_data = {}
-    for key, value in data_to_adapt_to.items():
-        return_data.update({key: single})
-    return return_data
+    return [single]*len(data_to_adapt_to)
 
 REGISTRY: dict[str, Callable[..., Any]] = {
     "finalize": finalize,
-    "combine": combine,
+    "merge": merge,
     "bind": bind,
     "segregate": segregate,
     "select": select,

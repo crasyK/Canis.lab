@@ -97,7 +97,6 @@ def get_marker_data_from_dict(state_file, marker_reference_dict):
                 data[key] = json.load(f)
                 addresses[key] = get_file_from_marker(state_file, value)
         except Exception as e:
-            print(f"Error getting data for marker {key}: {e}")
             data[key] = value
             addresses[key] = value
     return data, addresses
@@ -200,7 +199,6 @@ def use_code_tool(state_file, custom_name, tool_name,reference_dict):
     with open(state_file, 'r') as f:
         state = json.load(f)
     data,adresses = get_marker_data_from_dict(state_file, reference_dict)
-    print(data)
     state["status"] = "running"
     new_step = empty_step_code.copy()
     new_step["name"] = custom_name
