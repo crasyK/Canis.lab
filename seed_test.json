@@ -1,0 +1,50 @@
+{
+    "variables": {
+      "customerType": [
+        "Frustrated Customer",
+        "Satisfied Customer"
+      ],
+      "agentType": [
+        "Technical Support Agent",
+        "Customer Service Representative"
+      ],
+      "issueType": [
+        "Product Not Working",
+        "Billing Inquiry"
+      ],
+      "responseQuality": [
+        "Detailed Response",
+        "Concise Response"
+      ],
+      "resolutionStatus": [
+        "Issue Resolved",
+        "Escalated to Supervisor"
+      ]
+    },
+    "constants": {
+      "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {customerType} and a {agentType} with these SPECIFIC requirements: {instructions}",
+      "instructions": "Ensure that the {customerType} clearly states their {issueType} and receives a {responseQuality} from the {agentType}. The conversation should end with the {resolutionStatus}.",
+      "role1": "customer",
+      "role2": "support agent",
+      "turns": "4",
+      "conversations": "3"
+    },
+    "call": {
+      "custom_id": "__index__",
+      "method": "POST",
+      "url": "/v1/responses",
+      "body": {
+        "model": "gpt-5-nano",
+        "input": [
+          {
+            "role": "system",
+            "content": "Please be a helpful assistant and only generate the requested dialogues."
+          },
+          {
+            "role": "user",
+            "content": "__prompt__"
+          }
+        ]
+      }
+    }
+}

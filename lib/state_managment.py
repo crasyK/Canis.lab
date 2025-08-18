@@ -111,15 +111,13 @@ def start_seed_step(state_file, seed_file):
     new_step["status"] = "created"
     new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +".jsonl"
     generate_seed_batch_file(seed_file, new_step["batch"]["in"])
-    new_step["data"]["out"] = {"user_prompt": "runs/" + state["name"] + "/data/user_prompt.json", "system_prompt": "runs/" + state["name"] + "/data/system_prompt.json"}
+    new_step["data"]["out"] = {"user_prompt": "runs/" + state["name"] + "/data/user_prompt.json", "system_prompt": "runs/" + state["name"] + "/data/system_prompt.json", "raw_seed_data": "runs/" + state["name"] + "/data/raw_seed_data.json"}
     convert_batch_in_to_json_data(new_step["batch"]["in"], new_step["data"]["out"]["system_prompt"], new_step["data"]["out"]["user_prompt"])
     state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], {"str":"data"}))
     state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], {"str":"data"}))
 
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
     new_step["batch"]["out"] = "runs/" + state["name"] + "/batch/"+ new_step["name"] +"_results.jsonl"
-
-    new_step["data"]["out"] = {"raw_seed_data": "runs/" + state["name"] + "/data/raw_seed_data.json"}
     state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "uploaded"))
 
     new_step["status"] = "uploaded"
@@ -175,6 +173,7 @@ def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
     new_step = empty_step_llm.copy()
     new_step["name"] = custom_name
     new_step["status"] = "created"
+    new_step["tool_name"] = tool_name
     new_step["batch"]["in"] = "runs/" + state["name"] + "/batch/" + new_step["name"] + ".jsonl"
     new_step["data"]["in"] = adresses
     generate_llm_tool_batch_file(tool_name, adresses, new_step["batch"]["in"])
