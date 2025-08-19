@@ -1,14 +1,9 @@
-positions = []
-import streamlit as st
-from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
-from streamlit_flow.state import StreamlitFlowState
 import json
 
-def create_styled_steps_from_state(state_file):
+def create_styled_steps_from_state(state_data):
     """Create step instances from state file data with proper styling and real names"""
-    with open(state_file, 'r') as f:
-        state_data = json.load(f)
+
 
     steps = state_data["state_steps"]
     nodes = state_data["nodes"]
@@ -33,10 +28,25 @@ def create_styled_steps_from_state(state_file):
     
     return step_instances
 
+def create_complete_flow_from_state(state_data):
+    """Create step instances and edges from state file data"""
+    # Reset class state to avoid accumulation
+    step.reset_class_state()
+    
+    # Create all step instances
+    step_instances = create_styled_steps_from_state(state_data)
+    
+    # Then create edges between them
+    complete_flow = step.return_complete_flow()
+    
+    return complete_flow
+
+
 class step(object):
     num_of_steps = 0
     steps_arr = []
     instances = {}
+    edges_arr = []
 
     def __init__(self, markers_map, step_type="code", status="completed", step_data=None, step_name="Step", nodes_info=None):
         self.markers_map = markers_map
@@ -62,8 +72,8 @@ class step(object):
         border_color = '#0066cc' if self.step_type == 'llm' else '#ff8c00' # blue for llm, orange for code
         
         # Background color based on status
-        backgroundColor = '#808080' if self.status == 'uploaded' else 'white' # grey for uploaded, white for completed
-
+        backgroundColor = '#808080' if self.status == 'uploaded' else 'white' # grey for running, white for completed
+        
         return {
             'color': 'black',  # Text color is always black now
             'backgroundColor': backgroundColor,
@@ -220,12 +230,100 @@ class step(object):
         return self.arr
 
     @classmethod
+    def create_edges_between_steps(cls):
+        """Create edges connecting output nodes to input nodes based on file paths"""
+        edges = []
+        
+        # Create a snapshot of instances to avoid dictionary modification during iteration
+        all_instances = list(cls.instances.values())
+        
+        for step_instance in all_instances:
+            # Get output data for this step
+            output_data = step_instance.step_data.get('out', {})
+            
+            for out_marker_key, out_file_path in output_data.items():
+                # Find which input nodes in other steps use this output
+                target_steps = cls.find_steps_using_file_as_input(out_file_path)
+                
+                for target_step, in_marker_key in target_steps:
+                    # Create edge from output to input
+                    source_node_id = cls.find_output_node_id(step_instance, out_marker_key)
+                    target_node_id = cls.find_input_node_id(target_step, in_marker_key)
+                    
+                    if source_node_id and target_node_id:
+                        edge = StreamlitFlowEdge(
+                            f"edge-{source_node_id}-to-{target_node_id}",
+                            source_node_id,
+                            target_node_id,
+                            style={'stroke': '#333', 'strokeWidth': 2}
+                        )
+                        edges.append(edge)
+        
+        cls.edges_arr = edges
+        return edges
+
+    @classmethod
+    def find_steps_using_file_as_input(cls, file_path):
+        """Find all steps that use the given file path as input"""
+        using_steps = []
+        
+        # Create a snapshot of instances to avoid dictionary modification during iteration
+        all_instances = list(cls.instances.values())
+        
+        for step_instance in all_instances:
+            input_data = step_instance.step_data.get('in', {})
+            for in_marker_key, in_file_path in input_data.items():
+                if in_file_path == file_path:
+                    using_steps.append((step_instance, in_marker_key))
+        
+        return using_steps
+
+
+    @classmethod
+    def find_output_node_id(cls, step_instance, marker_key):
+        """Find the node ID for a specific output marker in a step"""
+        output_data = step_instance.step_data.get('out', {})
+        output_counter = 0
+        
+        for out_key, _ in output_data.items():
+            output_counter += 1
+            if out_key == marker_key:
+                return f'{step_instance.step_number}-out-{output_counter}'
+        
+        return None
+
+    @classmethod
+    def find_input_node_id(cls, step_instance, marker_key):
+        """Find the node ID for a specific input marker in a step"""
+        input_data = step_instance.step_data.get('in', {})
+        input_counter = 0
+        
+        for in_key, _ in input_data.items():
+            input_counter += 1
+            if in_key == marker_key:
+                return f'{step_instance.step_number}-in-{input_counter}'
+        
+        return None
+
+    @classmethod
     def return_all_steps_combined(cls):
         """Returns all self.arr arrays from every instance combined into one big array"""
         combined_arr = []
         for step_arr in cls.steps_arr:
             combined_arr.extend(step_arr)
         return combined_arr
+
+    @classmethod
+    def return_all_edges(cls):
+        """Returns all edges connecting the steps"""
+        return cls.edges_arr
+
+    @classmethod
+    def return_complete_flow(cls):
+        """Returns both nodes and edges for the complete flow"""
+        nodes = cls.return_all_steps_combined()
+        edges = cls.create_edges_between_steps()
+        return {'nodes': nodes, 'edges': edges}
 
     @classmethod
     def return_steps(cls):
@@ -235,56 +333,12 @@ class step(object):
     @classmethod
     def get_instance_by_number(cls, step_number):
         return cls.instances.get(step_number)
+    
+    @classmethod
+    def reset_class_state(cls):
+        """Reset class variables - useful when creating a new flow"""
+        cls.num_of_steps = 0
+        cls.steps_arr = []
+        cls.instances = {}
+        cls.edges_arr = []
 
-
-
-
-step_instances = create_styled_steps_from_state("runs/run_20250818192628/state.json")
-all_combined_nodes = step.return_all_steps_combined()
-
-nodes = all_combined_nodes
-edges = []
-
-if 'curr_state' not in st.session_state:
-    st.session_state.curr_state = StreamlitFlowState(nodes, edges)
-
-st.session_state.curr_state = streamlit_flow('example_flow', 
-                                st.session_state.curr_state,
-                                fit_view=True, 
-                                height=500, 
-                                enable_node_menu=True,
-                                enable_edge_menu=True,
-                                enable_pane_menu=True,
-                                get_edge_on_click=True,
-                                get_node_on_click=True, 
-                                show_minimap=True, 
-                                hide_watermark=True, 
-                                allow_new_edges=True,
-                                min_zoom=0.1)
-
-
-nodes_updated = False
-
-for node in st.session_state.curr_state.nodes:
-    if 'parent' in node.id:
-        current_pos = tuple(dict(node.position).values())
-        prev_pos = tuple(node.data["prev_pos"])
-        
-        if current_pos != prev_pos:
-            step_number = int(node.id.split('-')[0])
-            step_instance = step.get_instance_by_number(step_number)
-            
-            if step_instance:
-                # Update nodes for this step
-                updated_nodes = step_instance.return_step(current_pos)
-                
-                # Replace nodes for this step
-                st.session_state.curr_state.nodes = [
-                    n for n in st.session_state.curr_state.nodes 
-                    if not n.id.startswith(f'{step_number}-')
-                ]
-                st.session_state.curr_state.nodes.extend(updated_nodes)
-                nodes_updated = True
-
-if nodes_updated:
-    st.rerun()

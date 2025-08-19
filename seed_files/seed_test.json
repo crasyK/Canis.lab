@@ -34,7 +34,7 @@
       "method": "POST",
       "url": "/v1/responses",
       "body": {
-        "model": "gpt-5-nano",
+        "model": "gpt-4o-mini",
         "input": [
           {
             "role": "system",
