@@ -3,8 +3,31 @@ import json
 import os
 import time
 from lib.state_managment import complete_running_step
+from lib.directory_manager import dir_manager
 
 st.set_page_config(page_title="Workflow Dashboard", layout="wide")
+
+def show_persistent_message():
+    """Display persistent messages that survive page reloads"""
+    if 'message' in st.session_state and st.session_state.message:
+        msg_type = st.session_state.message.get('type', 'info')
+        msg_text = st.session_state.message.get('text', '')
+        
+        if msg_type == 'success':
+            st.success(msg_text)
+        elif msg_type == 'error': 
+            st.error(msg_text)
+        elif msg_type == 'warning':
+            st.warning(msg_text)
+        elif msg_type == 'info':
+            st.info(msg_text)
+        
+        # Clear message after showing
+        st.session_state.message = None
+
+def set_message(message_type, text):
+    """Set a message that persists through reloads"""
+    st.session_state.message = {'type': message_type, 'text': text}
 
 # Auto-refresh for homepage only
 if 'last_refresh' not in st.session_state:
@@ -15,27 +38,21 @@ REFRESH_INTERVAL = 5
 
 def get_all_workflows():
     """Get all workflows with their current status"""
-    runs_dir = "runs/"
     workflows = []
     
-    if os.path.exists(runs_dir):
-        for run_name in os.listdir(runs_dir):
-            run_path = os.path.join(runs_dir, run_name)
-            if os.path.isdir(run_path):
-                state_file = os.path.join(run_path, "state.json")
-                if os.path.exists(state_file):
-                    try:
-                        with open(state_file, 'r') as f:
-                            state_data = json.load(f)
-                        workflows.append({
-                            'name': run_name,
-                            'status': state_data['status'],
-                            'steps': len(state_data['state_steps']),
-                            'running_batches': get_running_batches(state_data),
-                            'state_file': state_file
-                        })
-                    except Exception as e:
-                        st.error(f"Error loading {run_name}: {e}")
+    for run_name in dir_manager.list_workflows():
+        try:
+            state_file_path = dir_manager.get_state_file_path(run_name)
+            state_data = dir_manager.load_json(state_file_path)
+            workflows.append({
+                'name': run_name,
+                'status': state_data['status'],
+                'steps': len(state_data['state_steps']),
+                'running_batches': get_running_batches(state_data),
+                'state_file': str(state_file_path)
+            })
+        except Exception as e:
+            st.error(f"Error loading {run_name}: {e}")
     
     return workflows
 
@@ -64,18 +81,9 @@ def check_and_complete_batch(workflow_name, state_file):
 col1, col2, col3 = st.columns([2, 2, 1])
 with col1:
     st.title("🏠 Workflow Dashboard")
+    show_persistent_message()
 with col2:
     st.markdown("### Your Workflow Management Hub")
-with col3:
-    # Quick actions
-    if st.button("🏗️ Architect"):
-        st.switch_page("pages/seed_architect.py")
-
-# Auto-refresh indicator
-current_time = time.time()
-if current_time - st.session_state.last_refresh >= REFRESH_INTERVAL:
-    st.session_state.last_refresh = current_time
-    st.rerun()
 
 # Quick action buttons
 st.subheader("🚀 Quick Actions")
@@ -93,9 +101,6 @@ with action_col3:
     total_workflows = len(get_all_workflows())
     st.metric("Total Workflows", total_workflows)
 
-with action_col4:
-    time_since_refresh = int(current_time - st.session_state.last_refresh)
-    st.caption(f"Auto-refresh: {REFRESH_INTERVAL - time_since_refresh}s")
 
 st.divider()
 

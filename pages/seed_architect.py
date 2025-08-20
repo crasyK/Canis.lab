@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import re
+from lib.directory_manager import dir_manager
 
 class StreamlitSeedFileArchitect:
     """Streamlit-based Seed File Architect for interactive seed file creation."""
@@ -382,6 +383,28 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    def show_persistent_message():
+        """Display persistent messages that survive page reloads"""
+        if 'message' in st.session_state and st.session_state.message:
+            msg_type = st.session_state.message.get('type', 'info')
+            msg_text = st.session_state.message.get('text', '')
+            
+            if msg_type == 'success':
+                st.success(msg_text)
+            elif msg_type == 'error': 
+                st.error(msg_text)
+            elif msg_type == 'warning':
+                st.warning(msg_text)
+            elif msg_type == 'info':
+                st.info(msg_text)
+            
+            # Clear message after showing
+            st.session_state.message = None
+
+    def set_message(message_type, text):
+        """Set a message that persists through reloads"""
+        st.session_state.message = {'type': message_type, 'text': text}
+    
     architect = StreamlitSeedFileArchitect()
     
     # Header with navigation
@@ -392,6 +415,7 @@ def main():
     
     with col2:
         st.title("🏗️ Seed File Architect")
+        show_persistent_message()
         st.markdown("### Your Expert Partner in Synthetic Data Design")
     
     with col3:
@@ -444,16 +468,16 @@ def main():
             if st.button("📤 Export to Workflow", use_container_width=True):
                 # Save seed file to be used in workflows
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"seed_files/generated_seed_{timestamp}.json"
-                os.makedirs("seed_files", exist_ok=True)
+                filename = f"generated_seed_{timestamp}.json"
+                seed_dir = dir_manager.get_seed_files_dir()
+                filepath = seed_dir / filename
                 
                 try:
-                    with open(filename, 'w') as f:
-                        json.dump(st.session_state.current_seed, f, indent=2)
-                    st.success(f"💾 Seed file exported to {filename}")
-                    st.info("You can now use this seed file in your workflows!")
+                    dir_manager.save_json(filepath, st.session_state.current_seed)
+                    set_message('success', f"💾 Seed file exported to {filepath}")
+                    set_message('info', "💡 You can now use this seed file in your workflows!")
                 except Exception as e:
-                    st.error(f"❌ Error saving seed file: {e}")
+                    set_message('error', f"❌ Error saving seed file: {e}")
             
             if st.button("💾 Save Progress", use_container_width=True):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -465,9 +489,9 @@ def main():
                             "conversation_length": len(st.session_state.architect_messages),
                             "timestamp": datetime.now().isoformat()
                         }, f, indent=2)
-                    st.success(f"💾 Progress saved to {filename}")
+                    set_message('success', f"💾 Progress saved to {filename}")
                 except Exception as e:
-                    st.error(f"❌ Error saving progress: {e}")
+                    set_message('error', f"❌ Error saving progress: {e}")
     
     # Main chat interface
     st.header("💬 Architect Chat")
@@ -545,7 +569,7 @@ def main():
         with st.spinner("🤖 Analyzing template..."):
             ai_response = architect.get_ai_response(user_msg)
         
-        st.success(f"✅ {template_name.title()} example loaded!")
+        set_message('success', f"✅ {template_name.title()} example loaded!")
         st.session_state.show_current = True
         del st.session_state.example_loaded
         st.rerun()
