@@ -139,62 +139,115 @@ def create_new_workflow(workflow_name):
         return False
 
 def add_pending_step(step_type, step_name, tool_name):
-    """Add a step and immediately show it in the visual flow"""
+    """Add a step with proper input/output marker mapping"""
     print(f"🔧 Adding pending step: {step_name} ({step_type}: {tool_name})")
-    # Ensure current workflow exists
+    
     if not st.session_state.current_workflow:
         set_message('error', "❌ No workflow selected. Please select or create a workflow first.")
         return
 
-    # Initialize pending_steps if it doesn't exist
     if 'pending_steps' not in st.session_state:
         st.session_state.pending_steps = []
 
     try:
-        # Get current state data to determine next step number
+        # Get current state data
         state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
         if not state_file_path.exists():
             set_message('error', f"❌ State file not found for workflow: {st.session_state.current_workflow}")
             return
 
         current_state_data = dir_manager.load_json(state_file_path)
-
+        
         # Calculate next step number
         existing_steps = len(current_state_data.get('state_steps', []))
         pending_steps_count = len(st.session_state.pending_steps)
         next_step_number = existing_steps + pending_steps_count + 1
 
-        print(f"📊 Step numbers - Existing: {existing_steps}, Pending: {pending_steps_count}, Next: {next_step_number}")
-
-        # Create step instance using app_objects
+        # 🔧 GET TOOL REQUIREMENTS (This was missing!)
+        if step_type == 'llm':
+            tool_spec = prepare_data(tool_name)
+        else:  # code
+            tool_spec = prepare_tool_use(tool_name)
+        
+        print(f"📋 Tool spec for {tool_name}: {tool_spec}")
+        
+        # Extract input and output requirements
+        input_requirements = tool_spec.get('in', {})
+        output_requirements = tool_spec.get('out', {})
+        
+        print(f"🔌 Input requirements: {input_requirements}")
+        print(f"📤 Output requirements: {output_requirements}")
+        
+        # Create markers_map based on tool requirements
+        markers_map = {
+            'in': len(input_requirements) if input_requirements else 1,
+            'out': len(output_requirements) if output_requirements else 1
+        }
+        
+        print(f"📍 Created markers_map: {markers_map}")
+        
+        # Create step data with proper input/output structure
+        step_data = {
+            'name': step_name,
+            'type': step_type,
+            'tool_name': tool_name,
+            'status': 'pending',
+            'in': input_requirements,  # 🔧 Use actual tool requirements
+            'out': output_requirements  # 🔧 Use actual tool requirements
+        }
+        
+        # Calculate position
+        position_x = 100 + (next_step_number - 1) * 300
+        position_y = 100
+        
+        # Get current markers for the step instance
+        current_markers = current_state_data.get('nodes', [])
+        
+        # Create step instance with correct parameters
         from lib.app_objects import step
+        
         step_instance = step(
-            step_number=next_step_number,
-            step_name=step_name,
+            markers_map=markers_map,
             step_type=step_type,
-            tool_name=tool_name,
-            position=(100 + next_step_number * 200, 100)  # Position it visually
+            status='pending',
+            step_data=step_data,
+            step_name=step_name,
+            nodes_info=current_markers
         )
+        
+        # Override step number
+        step_instance.step_number = next_step_number
+        step.instances[next_step_number] = step_instance
+        
+        print(f"✅ Created step instance: {step_instance} with number {next_step_number}")
 
-        # Create pending step with the step instance
+        # Create pending step with connection requirements
         pending_step = {
             'type': step_type,
             'name': step_name,
             'tool': tool_name,
             'step_number': next_step_number,
             'step_instance': step_instance,
-            'connections': {}
+            'connections': {},
+            'position': (position_x, position_y),
+            'input_requirements': input_requirements,  # 🔧 Store for UI
+            'needs_connections': list(input_requirements.keys()) if input_requirements else []
         }
 
         # Add to pending steps
         st.session_state.pending_steps.append(pending_step)
         print(f"✅ Added pending step. Total pending: {len(st.session_state.pending_steps)}")
 
-        # IMMEDIATELY update the visual flow
+        # Update the visual flow
         update_flow_with_pending_steps()
 
-        # Set success message
-        set_message('success', f"✅ Added {step_type} step: {step_name}")
+        # Set success message with connection info
+        connection_info = ""
+        if input_requirements:
+            required_inputs = list(input_requirements.keys())
+            connection_info = f" (Needs: {', '.join(required_inputs)})"
+        
+        set_message('success', f"✅ Added {step_type} step: {step_name}{connection_info}")
 
     except Exception as e:
         print(f"❌ Error adding pending step: {e}")
@@ -205,6 +258,7 @@ def add_pending_step(step_type, step_name, tool_name):
 def update_flow_with_pending_steps():
     """Update the flow state to include pending steps in the visual diagram"""
     print(f"🔄 Updating flow with {len(st.session_state.get('pending_steps', []))} pending steps")
+    
     # Ensure flow_state exists
     if 'flow_state' not in st.session_state or not st.session_state.flow_state:
         print("⚠️ No flow_state found, creating empty one")
@@ -216,11 +270,16 @@ def update_flow_with_pending_steps():
         return
 
     try:
-        # Get current node IDs to avoid duplicates
-        existing_ids = {node.id for node in st.session_state.flow_state.nodes}
-        print(f"📋 Existing node IDs: {existing_ids}")
+        # Get all existing nodes (both from loaded workflow and previously added pending steps)
+        existing_nodes = list(st.session_state.flow_state.nodes)
+        existing_edges = list(st.session_state.flow_state.edges)
+        
+        # Get existing node IDs to avoid duplicates
+        existing_node_ids = {node.id for node in existing_nodes}
+        print(f"📋 Existing node IDs: {existing_node_ids}")
 
         # Add pending step nodes to the current flow
+        new_nodes = []
         for i, pending_step in enumerate(st.session_state.pending_steps):
             print(f"🔧 Processing pending step {i+1}: {pending_step['name']}")
             try:
@@ -228,23 +287,26 @@ def update_flow_with_pending_steps():
                 step_nodes = pending_step['step_instance'].return_step()
                 print(f"📦 Step returned {len(step_nodes)} nodes")
 
-                # Add these nodes to the flow state if not already present
-                new_nodes = []
+                # Add these nodes to the new_nodes list if not already present
                 for node in step_nodes:
-                    if node.id not in existing_ids:
+                    if node.id not in existing_node_ids:
                         new_nodes.append(node)
-                        existing_ids.add(node.id)
+                        existing_node_ids.add(node.id)
                         print(f"➕ Adding new node: {node.id}")
                     else:
                         print(f"⏭️ Skipping existing node: {node.id}")
 
-                if new_nodes:
-                    st.session_state.flow_state.nodes.extend(new_nodes)
-                    print(f"✅ Added {len(new_nodes)} new nodes to flow")
-
             except Exception as e:
                 print(f"❌ Error processing step {pending_step['name']}: {e}")
                 continue
+
+        # Update the flow state with all nodes (existing + new)
+        if new_nodes:
+            all_nodes = existing_nodes + new_nodes
+            st.session_state.flow_state.nodes = all_nodes
+            print(f"✅ Added {len(new_nodes)} new nodes. Total nodes: {len(all_nodes)}")
+        else:
+            print("ℹ️ No new nodes to add")
 
         print(f"🎯 Flow now has {len(st.session_state.flow_state.nodes)} total nodes")
 
@@ -643,26 +705,49 @@ if st.session_state.current_workflow and st.session_state.flow_state:
     # Display pending steps
     if st.session_state.pending_steps:
         st.subheader("⏳ Pending Steps")
-        st.info("💡 These steps are now visible in the diagram below. Connect them to other nodes, then click 'Execute' to run them.")
+        st.info("💡 These steps are now visible in the diagram below. Connect the required inputs, then click 'Execute' to run them.")
+        
         for i, pending_step in enumerate(st.session_state.pending_steps):
-            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
-            with col1:
-                st.write(f"**{pending_step['name']}**")
-            with col2:
-                st.write(f"{pending_step['type'].upper()}: {pending_step['tool']}")
-            with col3:
-                st.caption(f"Step #{pending_step['step_number']}")
-            with col4:
-                if st.button("❌", key=f"remove_pending_{i}", help="Remove this step"):
-                    # Remove from pending steps
-                    removed_step = st.session_state.pending_steps.pop(i)
-                    # Remove from visual flow
-                    step_id_prefix = f"{removed_step['step_number']}-"
-                    st.session_state.flow_state.nodes = [
-                        node for node in st.session_state.flow_state.nodes
-                        if not node.id.startswith(step_id_prefix)
-                    ]
-                    st.rerun()
+            with st.container():
+                col1, col2, col3, col4 = st.columns([3, 3, 2, 1])
+                
+                with col1:
+                    st.write(f"**{pending_step['name']}**")
+                    st.caption(f"{pending_step['type'].upper()}: {pending_step['tool']}")
+                
+                with col2:
+                    # Show required connections
+                    if pending_step.get('needs_connections'):
+                        st.write("🔌 **Needs Connections:**")
+                        for req in pending_step['needs_connections']:
+                            req_type = pending_step['input_requirements'][req]
+                            st.caption(f"• {req}: {req_type}")
+                    else:
+                        st.write("✅ **No connections needed**")
+                
+                with col3:
+                    # Show connection status
+                    connected_count = len([c for c in pending_step.get('connections', {}).values() if c])
+                    required_count = len(pending_step.get('needs_connections', []))
+                    
+                    if required_count == 0:
+                        st.success("Ready ✅")
+                    elif connected_count == required_count:
+                        st.success("Connected ✅")
+                    else:
+                        st.warning(f"Missing {required_count - connected_count}")
+                
+                with col4:
+                    if st.button("❌", key=f"remove_pending_{i}", help="Remove this step"):
+                        # Remove from pending steps and visual flow
+                        removed_step = st.session_state.pending_steps.pop(i)
+                        step_id_prefix = f"{removed_step['step_number']}-"
+                        st.session_state.flow_state.nodes = [
+                            node for node in st.session_state.flow_state.nodes
+                            if not node.id.startswith(step_id_prefix)
+                        ]
+                        st.rerun()
+        
         st.divider()
 
     # Workflow visualization - NO AUTO-REFRESH, only manual updates

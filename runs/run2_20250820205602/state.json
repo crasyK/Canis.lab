@@ -1,6 +1,6 @@
 {
   "name": "run2_20250820205602",
-  "status": "completed",
+  "status": "running",
   "nodes": [
     {
       "name": "system_prompt",
@@ -20,11 +20,19 @@
     },
     {
       "name": "raw_seed_data",
-      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/raw_seed_data.json",
+      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/raw_seed_data_extracted.json",
       "type": {
         "str": "data"
       },
       "state": "completed"
+    },
+    {
+      "name": "dialogues",
+      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/parsing_dialogues_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "uploaded"
     }
   ],
   "state_steps": [
@@ -44,6 +52,25 @@
           "user_prompt": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/user_prompt.json",
           "system_prompt": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/system_prompt.json",
           "raw_seed_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/raw_seed_data_extracted.json"
+        }
+      }
+    },
+    {
+      "name": "parsing",
+      "type": "llm",
+      "status": "uploaded",
+      "tool_name": "parse_conversation",
+      "batch": {
+        "in": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/batch/parsing_batch.jsonl",
+        "upload_id": "batch_68a6f2024db48190a31fbb7ed6e9ef65",
+        "out": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/batch/parsing_dialogues.jsonl"
+      },
+      "data": {
+        "in": {
+          "data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/raw_seed_data_extracted.json"
+        },
+        "out": {
+          "dialogues": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/parsing_dialogues_extracted.json"
         }
       }
     }

@@ -99,11 +99,15 @@ def get_marker_data_from_dict(state_file, marker_reference_dict):
     addresses = {}
     for key, value in marker_reference_dict.items():
         try:
+            print(f"🔍 DEBUG get_marker_data - trying to resolve marker '{value}'")
             file_path = str(get_file_from_marker(state_file, value))
+            print(f"🔍 DEBUG get_marker_data - resolved to file_path: {file_path}")
             with open(file_path, 'r') as f:
                 data[key] = json.load(f)
                 addresses[key] = get_file_from_marker(state_file, value)
+            print(f"🔍 DEBUG get_marker_data - successfully loaded data for {key}")
         except Exception as e:
+            print(f"🔍 DEBUG get_marker_data - FAILED to resolve marker '{value}': {e}")
             data[key] = value
             addresses[key] = value
     return data, addresses
@@ -192,6 +196,7 @@ def complete_running_step(state_file):
         
         # Update the state file with the new data
         output_marker["state"] = "completed"
+        output_marker["file_name"] = str(data_output_path)  # Fix: Update marker to point to extracted file
         (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
         
         # Save state using DirectoryManager
@@ -213,10 +218,21 @@ def complete_running_step(state_file):
 
 def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
     """Use LLM tool with DirectoryManager"""
+    
+    # 🔍 DEBUG: Print what connections were passed
+    print(f"🔍 DEBUG - Parsing step connections:")
+    print(f"   tool_name: {tool_name}")
+    print(f"   marker_datafile_dict: {marker_datafile_dict}")
+    
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
     
     data, addresses = get_marker_data_from_dict(state_file, marker_datafile_dict)
+    
+    # 🔍 DEBUG: Print what data was resolved
+    print(f"🔍 DEBUG - Resolved data:")
+    print(f"   addresses: {addresses}")
+    print(f"   data keys: {list(data.keys()) if data else 'None'}")
     state["status"] = "running"
     
     new_step = empty_step_llm.copy()
