@@ -174,7 +174,7 @@ empty_marker = {
     "state": ""
 }
 
-def create_state(name):
+def create_state(state_file_path,name):
     """Create a new workflow state using DirectoryManager"""
     filename = name + "_" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
     
@@ -189,7 +189,6 @@ def create_state(name):
     }
     
     # Save state using DirectoryManager
-    state_file_path = dir_manager.get_state_file_path(filename)
     dir_manager.save_json(state_file_path, state)
     
     return state

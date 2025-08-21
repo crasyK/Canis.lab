@@ -147,27 +147,29 @@ def load_workflow_state(workflow_name):
             
         state_data = dir_manager.load_json(state_file_path)
         
-        # Create step instances and nodes from completed steps
+        # Create step instances and nodes from ALL steps (not just completed ones)
         from lib.app_objects import step
         step.reset_class_state()  # Clear existing instances
         
         nodes = []
         for step_data in state_data.get('state_steps', []):
-            if step_data.get('status') == 'completed':
-                # Calculate markers_map from step data
-                inputs = step_data.get('data', {}).get('in', {})
-                outputs = step_data.get('data', {}).get('out', {})
-                markers_map = {'in': len(inputs), 'out': len(outputs)}
-                
-                step_instance = step(
-                    markers_map=markers_map,
-                    step_type=step_data.get('type', 'code'),
-                    status=step_data.get('status', 'completed'),
-                    step_data=step_data.get('data', {}),
-                    step_name=step_data.get('name', f'Step {len(nodes)+1}'),
-                    nodes_info=state_data.get('nodes', [])
-                )
-                nodes.extend(step_instance.return_step())
+            # Remove the status filter - show ALL steps
+            # if step_data.get('status') == 'completed':  # <-- REMOVE THIS LINE
+            
+            # Calculate markers_map from step data
+            inputs = step_data.get('data', {}).get('in', {})
+            outputs = step_data.get('data', {}).get('out', {})
+            markers_map = {'in': len(inputs), 'out': len(outputs)}
+            
+            step_instance = step(
+                markers_map=markers_map,
+                step_type=step_data.get('type', 'code'),
+                status=step_data.get('status', 'completed'),  # Pass the actual status
+                step_data=step_data.get('data', {}),
+                step_name=step_data.get('name', f'Step {len(nodes)+1}'),
+                nodes_info=state_data.get('nodes', [])
+            )
+            nodes.extend(step_instance.return_step())
         
         # Create single data nodes
         single_data_nodes = create_single_data_nodes_from_state(state_data)
@@ -199,6 +201,7 @@ def load_workflow_state(workflow_name):
         import traceback
         traceback.print_exc()
         return None
+
 
 
 def save_single_data_connections_to_state(state_file_path, connections):
@@ -857,13 +860,6 @@ if st.session_state.get('show_create_workflow_dialog', False):
                 "Workflow Name:",
                 placeholder="Enter a unique name for your workflow",
                 key="new_workflow_name"
-            )
-            
-            # Optional description
-            workflow_description = st.text_area(
-                "Description (optional):",
-                placeholder="Briefly describe what this workflow does",
-                key="new_workflow_description"
             )
             
             col1, col2 = st.columns(2)
