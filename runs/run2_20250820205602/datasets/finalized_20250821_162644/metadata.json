@@ -1,0 +1,11 @@
+{
+  "created": "2025-08-21T16:26:44.426806",
+  "version_name": "finalized_20250821_162644",
+  "dataset_name": "dataset",
+  "num_rows": 109,
+  "features": [
+    "id",
+    "content"
+  ],
+  "workflow_name": "run2_20250820205602"
+}

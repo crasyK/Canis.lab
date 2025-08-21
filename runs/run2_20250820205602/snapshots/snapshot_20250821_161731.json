@@ -1,6 +1,6 @@
 {
   "name": "run2_20250820205602",
-  "status": "finalized",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -103,20 +103,6 @@
         "list": "data"
       },
       "state": "created"
-    },
-    {
-      "name": "merged_data",
-      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/add sys prompt_merged_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "finalized_data",
-      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/datasets/finalized_20250821_162644",
-      "type": "huggingface_dataset",
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -184,35 +170,6 @@
         },
         "out": {
           "expanded_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/adapt _expanded_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "add sys prompt",
-      "type": "code",
-      "tool_name": "merge",
-      "data": {
-        "in": {
-          "sufix_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/unwind_bound_data_processed.json",
-          "prefix_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/adapt _expanded_data_processed.json"
-        },
-        "out": {
-          "merged_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/add sys prompt_merged_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "final",
-      "type": "code",
-      "tool_name": "finalize",
-      "data": {
-        "in": {
-          "data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/add sys prompt_merged_data_processed.json"
-        },
-        "out": {
-          "finalized_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/datasets/finalized_20250821_162644"
         }
       },
       "status": "completed"

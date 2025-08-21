@@ -46,9 +46,19 @@ def check_data_type(data):
     return {state["data_type"]:state["architecture"]}
 
 def has_connection(origin, ending): # Both are part of the valid markers collection
+    """Enhanced connection validation that supports multiple compatible types"""
+    
+    # Handle multiple acceptable types in ending (like expand tool)
+    if isinstance(ending, dict):
+        for end_key, end_value in ending.items():
+            if end_key in origin and origin[end_key] == end_value:
+                return True
+    
+    # Original logic for exact matches
     for key, value in origin.items():
         if key in ending and ending[key] == value:
             return True
+    
     return False
 
 def validate_tool_connection(source_type, target_type, tool_requirements=None):

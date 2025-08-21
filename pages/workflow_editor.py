@@ -80,22 +80,160 @@ def preview_seed_file(file_path):
         st.error(f"Error reading seed file: {e}")
         return None, None
 
+def create_single_data_edges_from_state(state_data, flow_state):
+    """Recreate edges for single data connections based on workflow state"""
+    from streamlit_flow.elements import StreamlitFlowEdge
+    
+    edges = list(flow_state.edges) if flow_state.edges else []
+    
+    # Look through completed steps to find single data usage
+    for step in state_data.get('state_steps', []):
+        step_inputs = step.get('data', {}).get('in', {})
+        
+        # Find which step number this corresponds to
+        step_name = step.get('name', '')
+        step_number = None
+        
+        # Find the step number from existing nodes
+        for node in flow_state.nodes:
+            if 'parent' in node.id and node.data.get('content') == step_name:
+                step_number = node.id.split('-')[0]
+                break
+        
+        if step_number:
+            # Check each input to see if it's a single data reference
+            input_index = 1
+            for input_key, input_value in step_inputs.items():
+                # Check if this input references a single data node
+                for single_node in state_data.get('nodes', []):
+                    if (single_node.get('state') == 'single_data' and 
+                        single_node.get('name') == input_value):
+                        
+                        # Create edge from single data node to step input
+                        source_id = f"single-{single_node['name']}"
+                        target_id = f"{step_number}-in-{input_index}"
+                        edge_id = f"restored-edge-{source_id}-to-{target_id}"
+                        
+                        # Check if edge already exists
+                        edge_exists = any(e.source == source_id and e.target == target_id 
+                                        for e in edges)
+                        
+                        if not edge_exists:
+                            edge = StreamlitFlowEdge(
+                                edge_id,
+                                source_id,
+                                target_id,
+                                style={'stroke': '#4CAF50', 'strokeWidth': 2}
+                            )
+                            edges.append(edge)
+                            print(f"DEBUG: Restored single data edge: {source_id} -> {target_id}")
+                
+                input_index += 1
+    
+    return edges
+
 def load_workflow_state(workflow_name):
-    """Load workflow state without auto-refresh"""
+    """Load workflow state and recreate visual flow with proper edge restoration"""
     try:
+        # Clear any existing state first
+        if 'pending_steps' in st.session_state:
+            st.session_state.pending_steps = []
+        
+        # Load state file
         state_file_path = dir_manager.get_state_file_path(workflow_name)
+        if not state_file_path.exists():
+            set_message('error', f"❌ Workflow state file not found: {workflow_name}")
+            return None
+            
         state_data = dir_manager.load_json(state_file_path)
-        flow_data = create_complete_flow_from_state(state_data)
-        nodes = flow_data['nodes']
-        edges = flow_data['edges']
-        # Apply visual state based on step status (greyed out, etc.)
-        nodes = apply_visual_states(nodes, state_data)
-        st.session_state.flow_state = StreamlitFlowState(nodes, edges)
+        
+        # Create step instances and nodes from completed steps
+        from lib.app_objects import step
+        step.reset_class_state()  # Clear existing instances
+        
+        nodes = []
+        for step_data in state_data.get('state_steps', []):
+            if step_data.get('status') == 'completed':
+                # Calculate markers_map from step data
+                inputs = step_data.get('data', {}).get('in', {})
+                outputs = step_data.get('data', {}).get('out', {})
+                markers_map = {'in': len(inputs), 'out': len(outputs)}
+                
+                step_instance = step(
+                    markers_map=markers_map,
+                    step_type=step_data.get('type', 'code'),
+                    status=step_data.get('status', 'completed'),
+                    step_data=step_data.get('data', {}),
+                    step_name=step_data.get('name', f'Step {len(nodes)+1}'),
+                    nodes_info=state_data.get('nodes', [])
+                )
+                nodes.extend(step_instance.return_step())
+        
+        # Create single data nodes
+        single_data_nodes = create_single_data_nodes_from_state(state_data)
+        nodes.extend(single_data_nodes)
+        
+        # Create edges between steps
+        edges = step.create_edges_between_steps()
+        
+        # Create initial flow state
+        from streamlit_flow import StreamlitFlowState
+        flow_state = StreamlitFlowState(nodes, edges)
+        
+        # IMPORTANT: Restore single data edges
+        restored_edges = create_single_data_edges_from_state(state_data, flow_state)
+        flow_state.edges = restored_edges
+        
+        # Update session state
+        st.session_state.flow_state = flow_state
         st.session_state.current_workflow = workflow_name
+        
+        print(f"✅ Loaded workflow: {workflow_name}")
+        print(f"DEBUG: Created {len(nodes)} nodes and {len(restored_edges)} edges")
+        
         return state_data
+        
     except Exception as e:
-        st.error(f"Error loading workflow: {e}")
+        set_message('error', f"❌ Error loading workflow: {e}")
+        print(f"❌ Error loading workflow {workflow_name}: {e}")
+        import traceback
+        traceback.print_exc()
         return None
+
+
+def save_single_data_connections_to_state(state_file_path, connections):
+    """Save single data connections to the workflow state file"""
+    try:
+        state_data = dir_manager.load_json(state_file_path)
+        
+        # Add single data connections to each step's input data
+        for step in state_data.get('state_steps', []):
+            step_name = step.get('name', '')
+            if step_name in connections:
+                step_connections = connections[step_name]
+                
+                # Update the step's input data to include single data references
+                if 'data' not in step:
+                    step['data'] = {}
+                if 'in' not in step['data']:
+                    step['data']['in'] = {}
+                
+                # Add single data connections to the step's input data
+                for param_name, source_value in step_connections.items():
+                    # Check if this is a single data reference
+                    for node in state_data.get('nodes', []):
+                        if (node.get('state') == 'single_data' and 
+                            node.get('name') == source_value):
+                            step['data']['in'][param_name] = source_value
+                            print(f"DEBUG: Saved single data connection: {step_name}.{param_name} = {source_value}")
+        
+        # Save updated state
+        dir_manager.save_json(state_file_path, state_data)
+        print("✅ Saved single data connections to state file")
+        
+    except Exception as e:
+        print(f"❌ Error saving single data connections: {e}")
+
 
 def apply_visual_states(nodes, state_data):
     """Apply visual states to nodes based on step status"""
@@ -320,24 +458,50 @@ def update_flow_with_pending_steps():
 def execute_pending_steps():
     """Execute pending steps with proper directory handling and connections"""
     if not st.session_state.current_workflow:
-        set_message('error', "❌ No workflow selected")
+        set_message('error', '❌ No workflow selected')
         return False
 
     if not st.session_state.pending_steps:
-        set_message('info', "ℹ️ No pending steps to execute")
+        set_message('info', 'ℹ️ No pending steps to execute')
         return True
 
     try:
         # Get current edge connections from the flow
         connections = get_edge_connections(st.session_state.flow_state)
+        print(f"DEBUG: Extracted connections: {connections}")
+        
+        # Validate all pending steps have required connections
+        validation_errors = []
+        for pending_step in st.session_state.pending_steps:
+            step_name = pending_step['name']
+            required_inputs = pending_step.get('input_requirements', {})
+            step_connections = connections.get(step_name, {})
+            
+            missing_connections = []
+            for required_input in required_inputs.keys():
+                if required_input not in step_connections or not step_connections[required_input]:
+                    missing_connections.append(required_input)
+            
+            if missing_connections:
+                validation_errors.append(f"{step_name}: missing {', '.join(missing_connections)}")
+        
+        if validation_errors:
+            error_msg = "❌ Missing connections:\n" + "\n".join(validation_errors)
+            set_message('error', error_msg)
+            print(f"VALIDATION FAILED: {error_msg}")
+            return False
+        
+        print("✅ All connections validated successfully")
+
+        # Get state file path (move this outside the loop)
+        state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
 
         # Execute each pending step
         for pending_step in st.session_state.pending_steps:
             step_connections = connections.get(pending_step['name'], {})
+            print(f"DEBUG: Executing {pending_step['name']} with connections: {step_connections}")
+            
             try:
-                # Get proper state file path for the functions
-                state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
-
                 if pending_step['type'] == 'llm':
                     use_llm_tool(
                         str(state_file_path),
@@ -345,7 +509,7 @@ def execute_pending_steps():
                         pending_step['tool'],
                         step_connections
                     )
-                else:  # code
+                else: # code
                     use_code_tool(
                         str(state_file_path),
                         pending_step['name'],
@@ -357,71 +521,166 @@ def execute_pending_steps():
 
             except Exception as e:
                 set_message('error', f"❌ Error executing {pending_step['name']}: {e}")
+                print(f"❌ Execution error for {pending_step['name']}: {e}")
+                import traceback
+                traceback.print_exc()
                 return False
+
+        # Save single data connections AFTER successful execution
+        if connections:
+            save_single_data_connections_to_state(state_file_path, connections)
 
         # Clear pending steps after successful execution
         st.session_state.pending_steps = []
 
         # Reload the workflow state to show updated diagram
         load_workflow_state(st.session_state.current_workflow)
-
         return True
 
     except Exception as e:
-        set_message('error', f"❌ Execution error: {e}")
+        set_message('error', f'❌ Execution error: {e}')
+        print(f"❌ Overall execution error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
+
 def get_edge_connections(flow_state):
-    """Extract edge connections from the flow state"""
+    """Extract edge connections from the flow state with proper mapping to tool requirements"""
     connections = {}
+    print(f"DEBUG: Processing {len(flow_state.edges)} edges")
+    
+    # Get current state data to look up actual marker names
+    if st.session_state.current_workflow:
+        state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+        current_state_data = dir_manager.load_json(state_file_path)
+        state_steps = current_state_data.get('state_steps', [])
+    else:
+        state_steps = []
+    
     for edge in flow_state.edges:
+        print(f"DEBUG: Edge {edge.id}: {edge.source} -> {edge.target}")
+        
         source_id = edge.source
         target_id = edge.target
-        for i, pending_step in enumerate(st.session_state.pending_steps):
-            if target_id.startswith(f'pending_{i}_'):
-                connections[pending_step['name']] = connections.get(pending_step['name'], {})
-                marker_name = target_id.split('_')[-1]
-                source_marker = source_id.split('-')[-1]
-                connections[pending_step['name']][marker_name] = source_marker
+        
+        # Parse target to identify which step and input it belongs to
+        if '-' in target_id and target_id.count('-') >= 2:
+            parts = target_id.split('-')
+            if len(parts) >= 3:
+                step_number = parts[0]
+                node_type = parts[1] # 'in' or 'out'
+                input_index = parts[2] # '1', '2', etc.
+                
+                print(f"DEBUG: Parsing target {target_id}: step={step_number}, type={node_type}, index={input_index}")
+                
+                # Find the corresponding pending step
+                for pending_step in st.session_state.get('pending_steps', []):
+                    if str(pending_step['step_number']) == step_number and node_type == 'in':
+                        print(f"DEBUG: Found matching pending step: {pending_step['name']}")
+                        
+                        # Initialize connections dict for this step
+                        if pending_step['name'] not in connections:
+                            connections[pending_step['name']] = {}
+                        
+                        # Get tool requirements to map input index to parameter name
+                        tool_requirements = pending_step.get('input_requirements', {})
+                        print(f"DEBUG: Tool requirements: {tool_requirements}")
+                        
+                        # Map input index to parameter name
+                        param_names = list(tool_requirements.keys())
+                        try:
+                            param_index = int(input_index) - 1 # Convert to 0-based index
+                            if 0 <= param_index < len(param_names):
+                                matching_param = param_names[param_index]
+                                
+                                # Resolve source connection with PROPER MARKER LOOKUP
+                                if source_id.startswith('single-'):
+                                    source_value = source_id.replace('single-', '')
+                                elif '-' in source_id:
+                                    source_parts = source_id.split('-')
+                                    if len(source_parts) >= 3:
+                                        source_step_num = int(source_parts[0])
+                                        source_type = source_parts[1]  # 'out'
+                                        source_index = int(source_parts[2])  # 1, 2, 3...
+                                        
+                                        # Look up the actual output marker name from state
+                                        if source_step_num <= len(state_steps):
+                                            source_step_data = state_steps[source_step_num - 1]
+                                            output_data = source_step_data.get('data', {}).get('out', {})
+                                            
+                                            # Get the actual output marker name by index
+                                            output_keys = list(output_data.keys())
+                                            if source_index <= len(output_keys):
+                                                actual_output_name = output_keys[source_index - 1]
+                                                source_value = actual_output_name
+                                                print(f"DEBUG: Resolved output marker: step {source_step_num} output {source_index} -> {actual_output_name}")
+                                            else:
+                                                source_value = f"step_{source_step_num}_output_{source_index}"
+                                                print(f"WARNING: Output index {source_index} out of range for step {source_step_num}")
+                                        else:
+                                            source_value = f"step_{source_step_num}_output_{source_index}"
+                                            print(f"WARNING: Step {source_step_num} not found in state")
+                                    else:
+                                        source_value = source_id
+                                else:
+                                    source_value = source_id
+                                
+                                connections[pending_step['name']][matching_param] = source_value
+                                print(f"DEBUG: Mapped {target_id} -> {matching_param} = {source_value}")
+                                
+                            else:
+                                print(f"WARNING: Input index {input_index} out of range for {len(param_names)} parameters")
+                        except ValueError:
+                            print(f"WARNING: Could not parse input index '{input_index}' as integer")
+                        break # Found the step, no need to continue
+                else:
+                    print(f"DEBUG: Could not find pending step for target {target_id}")
+            else:
+                print(f"DEBUG: Could not parse target ID: {target_id}")
+    
+    print(f"DEBUG: Final connections: {connections}")
     return connections
 
 def create_single_data_block(data_name, data_type, data_value):
-    """Create a single data block and add it to the workflow state"""
+    """Enhanced version that properly handles single data persistence and visualization"""
     if not st.session_state.current_workflow:
         set_message('error', "❌ No workflow selected. Please select or create a workflow first.")
-        return
+        return False
     
     try:
+        from datetime import datetime
+        
         # Get current state data
         state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
         if not state_file_path.exists():
             set_message('error', f"❌ State file not found for workflow: {st.session_state.current_workflow}")
-            return
+            return False
         
         current_state_data = dir_manager.load_json(state_file_path)
         
+        # Check for duplicate names
+        existing_names = [node['name'] for node in current_state_data.get('nodes', [])]
+        if data_name in existing_names:
+            set_message('error', f"❌ A node with name '{data_name}' already exists. Please use a different name.")
+            return False
+        
         # Create truncated display name (7 characters)
-        if isinstance(data_value, str):
-            display_name = data_value[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
-        elif isinstance(data_value, list):
-            list_preview = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
-            display_name = list_preview
-        elif isinstance(data_value, dict):
-            json_preview = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
-            display_name = json_preview
-        else:
-            display_name = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
+        display_name = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
         
         # Create type specification following existing pattern
         type_spec = {data_type: "single"}
         
-        # Create single data marker
+        # Create single data marker with enhanced structure
         single_data_marker = {
             "name": data_name,
             "file_name": data_value,  # Store actual value in file_name field
             "type": type_spec,
             "state": "single_data",
-            "display_name": display_name
+            "display_name": display_name,
+            "created_at": datetime.now().isoformat(),  # Add timestamp
+            "data_type": data_type,  # Explicit data type for easier handling
+            "is_single_data": True   # Clear flag for identification
         }
         
         # Add to workflow state
@@ -429,18 +688,87 @@ def create_single_data_block(data_name, data_type, data_value):
             current_state_data["nodes"] = []
         current_state_data["nodes"].append(single_data_marker)
         
-        # Save updated state
-        dir_manager.save_json(state_file_path, current_state_data)
+        # Force atomic save to prevent corruption
+        dir_manager.atomic_save_json(state_file_path, current_state_data)
         
-        # Reload workflow to show new single data block
+        # Force immediate flow state reconstruction
         load_workflow_state(st.session_state.current_workflow)
         
         set_message('success', f"✅ Created single data block: {data_name}")
+        return True
         
     except Exception as e:
         set_message('error', f"❌ Error creating single data block: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+def create_single_data_nodes_from_state(state_data):
+    """Create standalone single data nodes that appear in the workflow editor"""
+    from streamlit_flow.elements import StreamlitFlowNode
+    
+    single_data_nodes = []
+    nodes = state_data.get('nodes', [])
+    
+    # Filter for single data nodes
+    single_data_markers = [node for node in nodes if node.get('state') == 'single_data']
+    
+    # Create visual nodes for each single data marker
+    for i, marker in enumerate(single_data_markers):
+        # Calculate position (arrange in a column on the left)
+        position_x = 50  # Fixed x position on the left
+        position_y = 100 + (i * 100)  # Vertical spacing
+        
+        # Get display name
+        display_name = marker.get('display_name', marker['name'])
+        
+        # Get styling based on data type
+        data_type = marker.get('data_type', 'string')
+        color_map = {
+            'string': '#90EE90',    # Light green
+            'integer': '#87CEEB',   # Sky blue
+            'list': '#DDA0DD',      # Plum
+            'json': '#F0E68C'       # Khaki
+        }
+        
+        style = {
+            'width': '120px',
+            'height': '60px',
+            'backgroundColor': color_map.get(data_type, '#E0E0E0'),
+            'border': '2px solid #4CAF50',  # Green border for single data
+            'borderRadius': '8px',
+            'color': 'black',
+            'fontSize': '12px',
+            'textAlign': 'center',
+            'display': 'flex',
+            'alignItems': 'center',
+            'justifyContent': 'center',
+            'boxShadow': '2px 2px 4px rgba(0,0,0,0.1)'
+        }
+        
+        # Create the visual node with proper connection setup
+        single_node = StreamlitFlowNode(
+            f"single-{marker['name']}",  # Unique ID
+            (position_x, position_y),
+            {
+                'content': display_name,
+                'full_name': marker['name'],
+                'data_type': marker.get('data_type', 'unknown'),
+                'value': marker['file_name'],  # The actual data value
+                'is_single_data': True,
+                'marker_name': marker['name'],  # Add marker name for connection tracking
+                'file_path': marker['file_name']  # Add file path for connection resolution
+            },
+            'input',  # Single data nodes are connection sources (input to the flow)
+            target_position='right',
+            draggable=True,
+            connectable=True,  # Explicitly enable connections
+            style=style
+        )
+        
+        single_data_nodes.append(single_node)
+    
+    return single_data_nodes
 
 # SIDEBAR - WORKFLOW ACTIONS AND MANAGEMENT
 with st.sidebar:

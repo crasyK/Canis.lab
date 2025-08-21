@@ -181,20 +181,34 @@ class step(object):
                 return node
         return None
 
+    def find_single_data_node(self, marker_name):
+        """Find single data node by marker name"""
+        if not hasattr(self, 'nodes_info') or not self.nodes_info:
+            return None
+        
+        for node in self.nodes_info:
+            if (node.get('name') == marker_name and 
+                node.get('state') == 'single_data'):
+                return node
+        return None
+
     def get_marker_display_name(self, marker_key, file_path):
-        """Get the actual marker name from the node info"""
-        # For single data blocks, check if node has display_name
-        node_info = self.find_node_by_file_path(file_path)
-        if node_info and node_info.get('state') == 'single_data':
-            return node_info.get('display_name', marker_key)
+        """Get display name for markers, handling both file-based and single data"""
         
-        # For regular single data, use the marker key as display name
+        # Check if this is single data
+        single_data_node = self.find_single_data_node(marker_key)
+        if single_data_node:
+            return single_data_node.get('display_name', marker_key)
+        
+        # Handle file-based data (existing logic)
         if self.is_single_data(file_path):
-            return marker_key
+            return str(file_path)[:7] + "..." if len(str(file_path)) > 7 else str(file_path)
         
-        # For file-based data, get name from node info
+        # Find the node info for this marker
+        node_info = self.find_node_by_file_path(file_path)
         if node_info:
             return node_info.get('name', marker_key)
+        
         return marker_key
 
     def return_step(self, position=(0, 0)):
