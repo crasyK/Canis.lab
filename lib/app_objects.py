@@ -97,7 +97,29 @@ class step(object):
             'height': '50px'
         }
         
-        # Check if it's single data first
+        # Check if it's a single data block first
+        node_info = self.find_node_by_file_path(file_path)
+        if node_info and node_info.get('state') == 'single_data':
+            # For single data blocks, use white border
+            style['border'] = '2px solid white'
+            
+            # Get data type from node type info
+            data_type = list(node_info.get('type', {}).keys())[0] if node_info.get('type') else 'string'
+            
+            if data_type == 'json':
+                style['backgroundColor'] = 'yellow'
+            elif data_type == 'string':
+                style['backgroundColor'] = 'green'
+            elif data_type == 'list':
+                style['backgroundColor'] = 'purple'
+            elif data_type == 'integer':
+                style['backgroundColor'] = 'lightblue'
+            else:
+                style['backgroundColor'] = 'lightgray'
+            
+            return style
+        
+        # Check if it's regular single data
         if self.is_single_data(file_path):
             # For single data, use white border and determine background by content type
             style['border'] = '2px solid white'
@@ -161,11 +183,16 @@ class step(object):
 
     def get_marker_display_name(self, marker_key, file_path):
         """Get the actual marker name from the node info"""
-        # For single data, use the marker key as display name
+        # For single data blocks, check if node has display_name
+        node_info = self.find_node_by_file_path(file_path)
+        if node_info and node_info.get('state') == 'single_data':
+            return node_info.get('display_name', marker_key)
+        
+        # For regular single data, use the marker key as display name
         if self.is_single_data(file_path):
             return marker_key
         
-        node_info = self.find_node_by_file_path(file_path)
+        # For file-based data, get name from node info
         if node_info:
             return node_info.get('name', marker_key)
         return marker_key
@@ -336,9 +363,48 @@ class step(object):
     
     @classmethod
     def reset_class_state(cls):
-        """Reset class variables - useful when creating a new flow"""
+        """Reset class variables and clear session state - useful when creating a new flow"""
         cls.num_of_steps = 0
         cls.steps_arr = []
         cls.instances = {}
         cls.edges_arr = []
+        
+        # Clear step instances from session state
+        try:
+            import streamlit as st
+            if 'step_instances' in st.session_state:
+                del st.session_state['step_instances']
+            
+            # Clear flow state related keys
+            keys_to_clear = [key for key in st.session_state.keys() if 'flow_state' in key or 'step_' in key]
+            for key in keys_to_clear:
+                del st.session_state[key]
+                print(f"✅ Cleared flow state key: {key}")
+                
+        except ImportError:
+            # Not in Streamlit context, skip cleanup
+            pass
+        
+        print(f"✅ Reset step class state - instances: {len(cls.instances)}, steps: {len(cls.steps_arr)}")
+        
+    @classmethod
+    def validate_node_id_uniqueness(cls):
+        """Validate that all node IDs are unique across the flow"""
+        all_node_ids = set()
+        duplicates = []
+        
+        for step_instance in cls.instances.values():
+            for node in step_instance.arr:
+                node_id = node.id
+                if node_id in all_node_ids:
+                    duplicates.append(node_id)
+                else:
+                    all_node_ids.add(node_id)
+        
+        if duplicates:
+            print(f"❌ Duplicate node IDs found: {duplicates}")
+            return False
+        
+        print(f"✅ All {len(all_node_ids)} node IDs are unique")
+        return True
 

@@ -3,6 +3,46 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+def normalize_path(path_input):
+    """Ensure all paths are Path objects"""
+    if isinstance(path_input, str):
+        return Path(path_input).resolve()
+    elif isinstance(path_input, Path):
+        return path_input.resolve()
+    else:
+        raise ValueError(f"Invalid path type: {type(path_input)}")
+
+def validate_path_security(path_input):
+    """Validate that paths are within allowed directories"""
+    path = normalize_path(path_input)
+    allowed_dirs = [
+        Path.cwd() / 'runs', 
+        Path.cwd() / 'seed_files',
+        Path.cwd() / 'lib',
+        Path.cwd() / 'templates'
+    ]
+    
+    # Check if path is within any allowed directory
+    for allowed_dir in allowed_dirs:
+        try:
+            path.relative_to(allowed_dir)
+            return path  # Path is safe
+        except ValueError:
+            continue
+    
+    raise ValueError(f"Path not in allowed directory: {path}")
+    
+def safe_path_join(*path_parts):
+    """Safely join path parts and normalize"""
+    if not path_parts:
+        return Path.cwd()
+    
+    result = Path(path_parts[0])
+    for part in path_parts[1:]:
+        result = result / part
+    
+    return normalize_path(result)
+
 class DirectoryManager:
     """Centralized directory management for the entire application"""
     
@@ -253,21 +293,72 @@ class DirectoryManager:
         return seed_files
     
     def save_json(self, file_path, data):
-        """Safely save JSON data to a file"""
-        file_path = Path(file_path)
+        """Safely save JSON data to a file with atomic operations"""
+        file_path = normalize_path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(file_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        # Use atomic write with temporary file
+        temp_path = file_path.with_suffix('.tmp')
+        try:
+            with open(temp_path, 'w') as f:
+                json.dump(data, f, indent=2)
+            temp_path.replace(file_path)
+            print(f"✅ Atomically saved JSON: {file_path}")
+        except Exception as e:
+            if temp_path.exists():
+                temp_path.unlink()
+            raise e
+    
+    def atomic_save_json(self, file_path, data):
+        """Atomically save JSON data to prevent corruption"""
+        return self.save_json(file_path, data)
     
     def load_json(self, file_path):
-        """Safely load JSON data from a file"""
-        file_path = Path(file_path)
+        """Safely load JSON data from a file with security validation"""
+        file_path = normalize_path(file_path)
+        
+        # Validate path security
+        try:
+            validate_path_security(file_path)
+        except ValueError as e:
+            print(f"⚠️  Security validation failed: {e}")
+            raise
+        
         if not file_path.exists():
             raise FileNotFoundError(f"File not found: {file_path}")
         
-        with open(file_path, 'r') as f:
-            return json.load(f)
+        # Check file size to prevent memory exhaustion
+        file_size = file_path.stat().st_size
+        max_file_size = 50 * 1024 * 1024  # 50MB limit
+        
+        if file_size > max_file_size:
+            raise ValueError(f"File too large: {file_size} bytes (max: {max_file_size})")
+        
+        with open(file_path, 'r', encoding='utf-8') as f:
+            try:
+                return json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in file {file_path}: {e}")
+    
+    def sanitize_filename(self, filename):
+        """Sanitize filename to prevent directory traversal attacks"""
+        import re
+        
+        # Remove any path separators and special characters
+        sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', filename)
+        
+        # Remove leading dots and spaces
+        sanitized = sanitized.lstrip('. ')
+        
+        # Limit length
+        if len(sanitized) > 255:
+            sanitized = sanitized[:255]
+        
+        # Ensure it's not empty
+        if not sanitized:
+            sanitized = "unnamed_file"
+        
+        return sanitized
     
     def get_workflow_summary(self, workflow_name):
         """Get a comprehensive summary of a workflow's files and datasets"""

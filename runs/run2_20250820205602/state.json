@@ -1,6 +1,6 @@
 {
   "name": "run2_20250820205602",
-  "status": "running",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -28,11 +28,38 @@
     },
     {
       "name": "dialogues",
-      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/parsing_dialogues_extracted.json",
+      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/dialogues_extracted.json",
       "type": {
         "json": "data"
       },
-      "state": "uploaded"
+      "state": "completed"
+    },
+    {
+      "name": "DialogueKey",
+      "file_name": "dialogue",
+      "type": {
+        "string": "single"
+      },
+      "state": "single_data",
+      "display_name": "dialogu..."
+    },
+    {
+      "name": "Key",
+      "file_name": "dialogue",
+      "type": {
+        "string": "single"
+      },
+      "state": "single_data",
+      "display_name": "dialogu..."
+    },
+    {
+      "name": "Key_name",
+      "file_name": "dialogue",
+      "type": {
+        "string": "single"
+      },
+      "state": "single_data",
+      "display_name": "dialogu..."
     }
   ],
   "state_steps": [
@@ -58,19 +85,19 @@
     {
       "name": "parsing",
       "type": "llm",
-      "status": "uploaded",
+      "status": "completed",
       "tool_name": "parse_conversation",
       "batch": {
         "in": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/batch/parsing_batch.jsonl",
         "upload_id": "batch_68a6f2024db48190a31fbb7ed6e9ef65",
-        "out": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/batch/parsing_dialogues.jsonl"
+        "out": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/batch/parsing_results.jsonl"
       },
       "data": {
         "in": {
           "data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/raw_seed_data_extracted.json"
         },
         "out": {
-          "dialogues": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/parsing_dialogues_extracted.json"
+          "dialogues": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/run2_20250820205602/data/dialogues_extracted.json"
         }
       }
     }

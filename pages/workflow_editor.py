@@ -53,6 +53,8 @@ if 'show_run_dialog' not in st.session_state:
     st.session_state.show_run_dialog = False
 if 'show_create_workflow_dialog' not in st.session_state:
     st.session_state.show_create_workflow_dialog = False
+if 'show_single_data_dialog' not in st.session_state:
+    st.session_state.show_single_data_dialog = False
 
 def get_available_seed_files():
     """Get list of available seed files from seed_files directory"""
@@ -383,6 +385,63 @@ def get_edge_connections(flow_state):
                 connections[pending_step['name']][marker_name] = source_marker
     return connections
 
+def create_single_data_block(data_name, data_type, data_value):
+    """Create a single data block and add it to the workflow state"""
+    if not st.session_state.current_workflow:
+        set_message('error', "❌ No workflow selected. Please select or create a workflow first.")
+        return
+    
+    try:
+        # Get current state data
+        state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+        if not state_file_path.exists():
+            set_message('error', f"❌ State file not found for workflow: {st.session_state.current_workflow}")
+            return
+        
+        current_state_data = dir_manager.load_json(state_file_path)
+        
+        # Create truncated display name (7 characters)
+        if isinstance(data_value, str):
+            display_name = data_value[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
+        elif isinstance(data_value, list):
+            list_preview = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
+            display_name = list_preview
+        elif isinstance(data_value, dict):
+            json_preview = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
+            display_name = json_preview
+        else:
+            display_name = str(data_value)[:7] + "..." if len(str(data_value)) > 7 else str(data_value)
+        
+        # Create type specification following existing pattern
+        type_spec = {data_type: "single"}
+        
+        # Create single data marker
+        single_data_marker = {
+            "name": data_name,
+            "file_name": data_value,  # Store actual value in file_name field
+            "type": type_spec,
+            "state": "single_data",
+            "display_name": display_name
+        }
+        
+        # Add to workflow state
+        if "nodes" not in current_state_data:
+            current_state_data["nodes"] = []
+        current_state_data["nodes"].append(single_data_marker)
+        
+        # Save updated state
+        dir_manager.save_json(state_file_path, current_state_data)
+        
+        # Reload workflow to show new single data block
+        load_workflow_state(st.session_state.current_workflow)
+        
+        set_message('success', f"✅ Created single data block: {data_name}")
+        
+    except Exception as e:
+        set_message('error', f"❌ Error creating single data block: {e}")
+        import traceback
+        traceback.print_exc()
+
 # SIDEBAR - WORKFLOW ACTIONS AND MANAGEMENT
 with st.sidebar:
     st.header("🛠️ Workflow Manager")
@@ -432,6 +491,10 @@ with st.sidebar:
         
         if st.button("⚙️ Add Code Tool", key="sidebar_add_code_btn", use_container_width=True):
             st.session_state.show_code_dialog = True
+            st.rerun()
+        
+        if st.button("📊 Add Single Data", key="sidebar_add_single_btn", use_container_width=True):
+            st.session_state.show_single_data_dialog = True
             st.rerun()
         
         # Show pending steps count and allow execution
@@ -700,6 +763,84 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                     cancel = st.form_submit_button("Cancel")
                     if cancel:
                         st.session_state.show_code_dialog = False
+                        st.rerun()
+
+    # SINGLE DATA DIALOG
+    if st.session_state.get('show_single_data_dialog', False):
+        with st.expander("📊 Add Single Data Block", expanded=True):
+            with st.form("single_data_form"):
+                st.markdown("### Create Single Data Block")
+                
+                # Name input
+                data_name = st.text_input(
+                    "Data Name:",
+                    placeholder="Enter a name for this data block",
+                    key="single_data_name"
+                )
+                
+                # Data type selection
+                data_type = st.selectbox(
+                    "Data Type:",
+                    options=["string", "integer", "list", "json"],
+                    key="single_data_type"
+                )
+                
+                # Dynamic input based on type
+                data_value = None
+                if data_type == "string":
+                    data_value = st.text_input(
+                        "String Value:",
+                        placeholder="Enter string value",
+                        key="single_string_input"
+                    )
+                elif data_type == "integer":
+                    data_value = st.number_input(
+                        "Integer Value:",
+                        value=0,
+                        step=1,
+                        key="single_int_input"
+                    )
+                elif data_type == "list":
+                    list_input = st.text_input(
+                        "List Items (comma-separated):",
+                        placeholder="item1, item2, item3",
+                        key="single_list_input"
+                    )
+                    if list_input:
+                        # Convert comma-separated to list
+                        data_value = [item.strip() for item in list_input.split(',') if item.strip()]
+                        st.caption(f"Preview: {data_value}")
+                elif data_type == "json":
+                    json_input = st.text_area(
+                        "JSON Value:",
+                        placeholder='{"key": "value"}',
+                        key="single_json_input"
+                    )
+                    if json_input:
+                        try:
+                            import json
+                            data_value = json.loads(json_input)
+                            st.success("✅ Valid JSON")
+                        except json.JSONDecodeError as e:
+                            st.error(f"❌ Invalid JSON: {e}")
+                            data_value = None
+                
+                # Form buttons
+                col1, col2 = st.columns(2)
+                with col1:
+                    submitted = st.form_submit_button("📊 Create Single Data")
+                    if submitted:
+                        if data_name and data_value is not None:
+                            create_single_data_block(data_name, data_type, data_value)
+                            st.session_state.show_single_data_dialog = False
+                            st.rerun()
+                        else:
+                            set_message('warning', "⚠️ Please fill in all fields.")
+                
+                with col2:
+                    cancel = st.form_submit_button("Cancel")
+                    if cancel:
+                        st.session_state.show_single_data_dialog = False
                         st.rerun()
 
     # Display pending steps

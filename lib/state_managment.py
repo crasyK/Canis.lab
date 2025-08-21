@@ -10,6 +10,136 @@ from .tools.global_func import check_data_type
 from lib.directory_manager import dir_manager
 from pathlib import Path
 
+# Session State Management Functions
+def cleanup_session_state(workflow_name=None):
+    """Clean up session state when switching workflows"""
+    try:
+        import streamlit as st
+        keys_to_clear = ['flow_state', 'pending_steps', 'current_workflow', 'step_instances']
+        
+        if workflow_name:
+            # Clean workflow-specific keys
+            workflow_keys = [f"{workflow_name}_{key}" for key in keys_to_clear]
+            keys_to_clear.extend(workflow_keys)
+        
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+                print(f"✅ Cleared session state key: {key}")
+    except ImportError:
+        # Not in Streamlit context, skip cleanup
+        pass
+
+def get_namespaced_key(workflow_name, key):
+    """Get namespaced session state key"""
+    return f"{workflow_name}_{key}" if workflow_name else key
+
+def get_session_state_value(workflow_name, key, default=None):
+    """Get value from session state with namespacing"""
+    try:
+        import streamlit as st
+        namespaced_key = get_namespaced_key(workflow_name, key)
+        return st.session_state.get(namespaced_key, default)
+    except ImportError:
+        return default
+
+def set_session_state_value(workflow_name, key, value):
+    """Set value in session state with namespacing"""
+    try:
+        import streamlit as st
+        namespaced_key = get_namespaced_key(workflow_name, key)
+        st.session_state[namespaced_key] = value
+    except ImportError:
+        pass
+
+def auto_check_running_batches(state_file):
+    """Automatically check and update running batch statuses"""
+    state = dir_manager.load_json(state_file)
+    updated = False
+    
+    for step in state['state_steps']:
+        if step.get('status') in ['uploaded', 'in_progress']:
+            try:
+                result = complete_running_step(state_file)
+                updated = True
+                print(f"✅ Auto-updated batch status: {result}")
+            except Exception as e:
+                print(f"❌ Batch check failed: {e}")
+    
+    return updated
+
+def cleanup_large_session_objects():
+    """Clean up large objects from session state"""
+    try:
+        import streamlit as st
+        max_chat_history = 50
+        
+        # Clean up architect messages
+        if 'architect_messages' in st.session_state:
+            messages = st.session_state.architect_messages
+            if len(messages) > max_chat_history:
+                st.session_state.architect_messages = messages[-max_chat_history:]
+                print(f"✅ Trimmed chat history to {max_chat_history} messages")
+        
+        # Clean up large workflow states
+        keys_to_check = list(st.session_state.keys())
+        for key in keys_to_check:
+            if 'flow_state' in key and isinstance(st.session_state[key], dict):
+                flow_state = st.session_state[key]
+                if len(str(flow_state)) > 100000:  # ~100KB
+                    del st.session_state[key]
+                    print(f"✅ Removed large flow state: {key}")
+    
+    except ImportError:
+        pass
+
+def create_workflow_snapshot(state_file):
+    """Create a snapshot of workflow state before execution"""
+    state = dir_manager.load_json(state_file)
+    workflow_name = state["name"]
+    
+    # Create snapshot directory
+    workflow_path = dir_manager.get_workflow_path(workflow_name)
+    snapshots_dir = workflow_path / "snapshots"
+    snapshots_dir.mkdir(exist_ok=True)
+    
+    # Create snapshot with timestamp
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    snapshot_path = snapshots_dir / f"snapshot_{timestamp}.json"
+    
+    dir_manager.save_json(snapshot_path, state)
+    print(f"✅ Created workflow snapshot: {snapshot_path}")
+    
+    return snapshot_path
+
+def rollback_workflow_state(workflow_name, snapshot_name=None):
+    """Rollback workflow to a previous snapshot"""
+    workflow_path = dir_manager.get_workflow_path(workflow_name)
+    snapshots_dir = workflow_path / "snapshots"
+    
+    if not snapshots_dir.exists():
+        raise FileNotFoundError("No snapshots available for rollback")
+    
+    if snapshot_name:
+        snapshot_path = snapshots_dir / f"{snapshot_name}.json"
+    else:
+        # Get most recent snapshot
+        snapshots = list(snapshots_dir.glob("snapshot_*.json"))
+        if not snapshots:
+            raise FileNotFoundError("No snapshots found")
+        snapshot_path = max(snapshots, key=lambda x: x.stat().st_mtime)
+    
+    if not snapshot_path.exists():
+        raise FileNotFoundError(f"Snapshot not found: {snapshot_path}")
+    
+    # Restore state
+    snapshot_state = dir_manager.load_json(snapshot_path)
+    state_file_path = dir_manager.get_state_file_path(workflow_name)
+    dir_manager.save_json(state_file_path, snapshot_state)
+    
+    print(f"✅ Rolled back workflow to snapshot: {snapshot_path}")
+    return state_file_path
+
 
 empty_step_llm = {
     "name": "",
@@ -100,12 +230,32 @@ def get_marker_data_from_dict(state_file, marker_reference_dict):
     for key, value in marker_reference_dict.items():
         try:
             print(f"🔍 DEBUG get_marker_data - trying to resolve marker '{value}'")
-            file_path = str(get_file_from_marker(state_file, value))
-            print(f"🔍 DEBUG get_marker_data - resolved to file_path: {file_path}")
-            with open(file_path, 'r') as f:
-                data[key] = json.load(f)
-                addresses[key] = get_file_from_marker(state_file, value)
-            print(f"🔍 DEBUG get_marker_data - successfully loaded data for {key}")
+            
+            # Check if this is a single data block
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+            
+            # Find the marker in nodes
+            marker_node = None
+            for node in state["nodes"]:
+                if node["name"] == value:
+                    marker_node = node
+                    break
+            
+            if marker_node and marker_node.get("state") == "single_data":
+                # This is single data - use the stored value directly
+                data[key] = marker_node["file_name"]  # Value stored in file_name field
+                addresses[key] = value  # Use marker name as address
+                print(f"🔍 DEBUG get_marker_data - resolved single data '{value}': {data[key]}")
+            else:
+                # Regular file-based data
+                file_path = str(get_file_from_marker(state_file, value))
+                print(f"🔍 DEBUG get_marker_data - resolved to file_path: {file_path}")
+                with open(file_path, 'r') as f:
+                    data[key] = json.load(f)
+                    addresses[key] = get_file_from_marker(state_file, value)
+                print(f"🔍 DEBUG get_marker_data - successfully loaded data for {key}")
+                
         except Exception as e:
             print(f"🔍 DEBUG get_marker_data - FAILED to resolve marker '{value}': {e}")
             data[key] = value
@@ -217,7 +367,13 @@ def complete_running_step(state_file):
 
 
 def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
-    """Use LLM tool with DirectoryManager"""
+    """Use LLM tool with DirectoryManager and progress tracking"""
+    
+    # Create snapshot before operation
+    try:
+        create_workflow_snapshot(state_file)
+    except Exception as e:
+        print(f"⚠️  Failed to create snapshot: {e}")
     
     # 🔍 DEBUG: Print what connections were passed
     print(f"🔍 DEBUG - Parsing step connections:")
@@ -277,7 +433,14 @@ def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
 
 
 def use_code_tool(state_file, custom_name, tool_name, reference_dict):
-    """Use code tool with DirectoryManager"""
+    """Use code tool with DirectoryManager and progress tracking"""
+    
+    # Create snapshot before operation  
+    try:
+        create_workflow_snapshot(state_file)
+    except Exception as e:
+        print(f"⚠️  Failed to create snapshot: {e}")
+    
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
     
