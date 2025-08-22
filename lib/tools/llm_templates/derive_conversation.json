@@ -11,7 +11,7 @@
         "method": "POST",
         "url": "/v1/responses",
         "body": {
-            "model": "gpt-5-mini",
+            "model": "gpt-5-nano",
             "input": [
                 {"role": "system", "content": "From the following context, derive __num_conversations__ conversation(s) of __ai_role__ and __user_role__ of __num_turns__ turns."},
                 {"role": "user", "content": "__context__"}
