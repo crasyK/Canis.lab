@@ -250,6 +250,12 @@ class DirectoryManager:
         seed_dir.mkdir(exist_ok=True)
         return seed_dir
     
+    def get_chats_dir(self):
+        """Get or create chats directory"""
+        chats_dir = self.base_dir / "chats"
+        chats_dir.mkdir(exist_ok=True)
+        return chats_dir
+    
     def list_workflows(self):
         """List all available workflows"""
         runs_dir = self.base_dir / "runs"

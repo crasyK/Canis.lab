@@ -2,6 +2,7 @@ import streamlit as st
 from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 from streamlit_flow.state import StreamlitFlowState
+from streamlit_flow.layouts import LayeredLayout
 from lib.app_objects import step, create_complete_flow_from_state
 from lib.state_managment import (
     create_state, start_seed_step, complete_running_step,
@@ -1222,16 +1223,16 @@ if st.session_state.current_workflow and st.session_state.flow_state:
         st.session_state.flow_state,
         fit_view=True,
         height=600,
-        enable_node_menu=True,
-        enable_edge_menu=True,
-        enable_pane_menu=True,
+        enable_node_menu=False,
+        enable_edge_menu=False,
+        enable_pane_menu=False,
         get_edge_on_click=True,
         get_node_on_click=True,
         show_minimap=True,
         hide_watermark=True,
         allow_new_edges=True,
-        min_zoom=0.1
-    )
+        min_zoom=0.1,
+    ) 
 
     # Handle node updates (dragging) - NO FORCED REFRESH
     nodes_updated = False

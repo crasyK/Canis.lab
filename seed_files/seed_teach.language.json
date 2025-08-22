@@ -1,0 +1,137 @@
+{
+  "variables": {
+    "studentEngagement": [
+      "eager",
+      "hesitant",
+      "confused"
+    ],
+    "teachingTechnique": [
+      "Socratic questioning",
+      "step-by-step explanation",
+      "visual/conceptual analogies",
+      "real-world applications",
+      "error correction and feedback",
+      "scaffolding complex problems",
+      "multiple solution approaches"
+    ],
+    "languageArtsConcept": {
+      "1stGrade": [
+        "phonics",
+        "sight words",
+        "basic story elements"
+      ],
+      "2ndGrade": [
+        "reading fluency",
+        "story retelling",
+        "descriptive writing"
+      ],
+      "3rdGrade": [
+        "reading comprehension",
+        "paragraph writing",
+        "character analysis"
+      ],
+      "4thGrade": [
+        "main idea identification",
+        "narrative writing",
+        "vocabulary building"
+      ],
+      "5thGrade": [
+        "inference making",
+        "persuasive writing",
+        "literary devices"
+      ],
+      "6thGrade": [
+        "theme analysis",
+        "expository writing",
+        "grammar mechanics",
+        "citation basics"
+      ],
+      "7thGrade": [
+        "critical analysis",
+        "argumentative writing",
+        "poetry analysis",
+        "research papers"
+      ],
+      "8thGrade": [
+        "literary criticism",
+        "essay structure",
+        "advanced grammar",
+        "multimedia presentations"
+      ],
+      "9thGrade": [
+        "close reading",
+        "analytical essays",
+        "rhetorical devices",
+        "creative writing techniques"
+      ],
+      "10thGrade": [
+        "comparative analysis",
+        "research methodology",
+        "advanced composition",
+        "literary movements",
+        "peer review processes"
+      ],
+      "11thGrade": [
+        "advanced rhetoric",
+        "independent research",
+        "critical theory",
+        "multimedia literacy",
+        "academic discourse"
+      ],
+      "12thGrade": [
+        "college-level analysis",
+        "capstone projects",
+        "professional writing",
+        "literary criticism",
+        "thesis development"
+      ]
+    },
+    "studentResponse": [
+      "confused",
+      "satisfied",
+      "frustrated"
+    ],
+    "writingGenre": [
+      "narrative",
+      "expository",
+      "persuasive",
+      "descriptive",
+      "poetry",
+      "creative fiction"
+    ],
+    "readingSkill": [
+      "comprehension",
+      "fluency",
+      "vocabulary",
+      "critical thinking",
+      "analysis",
+      "interpretation"
+    ]
+  },
+  "constants": {
+    "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {role1} teaching a {languageArtsConcept_key} student and a {role2} with these SPECIFIC requirements: {instructions}",
+    "instructions": "The chatbot must engage with the student grade: {languageArtsConcept_key} using the {teachingTechnique} approach and adapt responses based on {studentEngagement}. Dialogues should cover the topic of {languageArtsConcept_value} and include responses that reflect {studentResponse}. The chatbot should ask questions to guide the student's understanding of {writingGenre} writing and {readingSkill} skills without directly providing answers.",
+    "role1": "language arts chatbot",
+    "role2": "K-12 student",
+    "turns": "4-6",
+    "conversations": "3"
+  },
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST",
+    "url": "/v1/responses",
+    "body": {
+      "model": "gpt-5-mini",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are an educational language arts chatbot designed to assist K-12 students with their reading, writing, and grammar questions. Your primary goal is to help students understand language concepts without directly giving them answers. Use various teaching techniques such as guided reading, creative prompts, visual organizers, and think-aloud modeling. Adapt your responses based on the student's engagement level\u2014whether they are enthusiastic, reluctant, confused, creative, or analytical. Encourage critical thinking, creativity, and offer supportive feedback to foster a positive learning experience in reading comprehension, writing skills, and grammar mastery."
+        },
+        {
+          "role": "user",
+          "content": "__prompt__"
+        }
+      ]
+    }
+  }
+}

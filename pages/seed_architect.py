@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 import re
-from lib.directory_manager import dir_manager
+import time
+from lib.directory_manager import dir_manager 
 
 class StreamlitSeedFileArchitect:
     """Streamlit-based Seed File Architect for interactive seed file creation."""
@@ -22,6 +23,9 @@ class StreamlitSeedFileArchitect:
             st.session_state.show_examples = False
             st.session_state.last_user_input = ""
             st.session_state.processing_input = False
+            st.session_state.temp_user_input = ""
+            st.session_state.show_validation = False
+            st.session_state.show_current = False
         
         self.SYSTEM_PROMPT = """**You are an Elite Seed File Architect AI** - a specialized expert in designing JSON seed files for synthetic data generation. You are the strategic partner who transforms user ideas into perfectly structured, production-ready seed files.
 
@@ -83,9 +87,9 @@ class StreamlitSeedFileArchitect:
     "method": "POST",
     "url": "/v1/responses",
     "body": {
-      "model": "...",
+      "model": "ask the user to select one of the following: ["gpt-5":"the smartest but more expensive", "gpt-5-mini":"Good Medium option", "gpt-5-nano":]",
       "input": [
-        {"role": "system", "content": "..."},
+        {"role": "system", "content": "Here you suggest a fitting systemprompt"},
         {"role": "user", "content": "__prompt__"}
       ]
     }
@@ -118,10 +122,37 @@ For INSTRUCTION data, use this pattern:
 }
 ```
 
+**CRITICAL: NESTED VARIABLE STRUCTURE**
+
+When creating nested variables (objects with multiple categories), you MUST follow this exact pattern:
+```json
+{
+  "variables": {
+    "subject": {
+      "science": ["physics", "chemistry", "biology"],
+      "arts": ["painting", "music", "literature"],
+      "technology": ["AI", "blockchain", "robotics"]
+    }
+  }
+}
+```
+
+This creates TWO automatic variables:
+- subject_key: The category name (science, arts, technology)
+- subject_value: The specific value from that category
+
+In your prompt template, use BOTH:
+- {subject_key} for the category name
+- {subject_value} for the specific value
+
+EXAMPLE USAGE:
+"You are teaching about {subject_key}. Today's lesson focuses on {subject_value}."
+
 **VARIABLE NAMING RULES:**
 - NEVER use underscores in variable names (avoid: ai_role, user_role, task_type)
 - Use camelCase or simple names (prefer: aiRole, userRole, taskType OR role1, role2, tasktype)
 - Variables with underscores break the template system
+- For nested variables, always explain the _key/_value pattern when suggesting them
 
 **INTERACTION STYLE:**
 - Ask one focused question at a time
@@ -297,29 +328,34 @@ Begin every conversation by understanding their specific use case and goals."""
         return None
 
     def get_ai_response(self, user_input: str) -> str:
-        """Get response from AI with error handling."""
+        """Get response from AI with improved error handling and shorter timeout."""
         st.session_state.last_user_input = user_input
         
+        # Check if already processing
+        if st.session_state.get('processing_input', False):
+            return "⏳ Already processing your request..."
+        
+        # Set processing flag with automatic cleanup
+        st.session_state.processing_input = True
+        
         try:
-            if st.session_state.processing_input:
-                return "⏳ Already processing your request..."
-            
-            st.session_state.processing_input = True
+            # Add user message to conversation
             st.session_state.architect_messages.append({"role": "user", "content": user_input})
             
+            # Shorter timeout for better UX
             response = st.session_state.architect_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=st.session_state.architect_messages,
                 max_completion_tokens=4096,
-                timeout=60
+                timeout=30  # Reduced from 60 to 20 seconds
             )
             
             ai_response = response.choices[0].message.content
             
             if not ai_response or ai_response.strip() == "":
-                st.session_state.processing_input = False
                 return "❌ Received empty response from AI. Please try again."
             
+            # Add AI response to conversation
             st.session_state.architect_messages.append({"role": "assistant", "content": ai_response})
             
             # Try to extract and update current seed file
@@ -327,18 +363,17 @@ Begin every conversation by understanding their specific use case and goals."""
             if extracted_json:
                 st.session_state.current_seed = extracted_json
             
-            st.session_state.processing_input = False
             return ai_response
             
         except openai.APITimeoutError:
-            st.session_state.processing_input = False
-            return f"❌ Request timed out. Your message was: '{user_input}'. Please try again."
+            return f"❌ Request timed out after 20 seconds. Message: '{user_input[:50]}...'"
         except openai.APIError as e:
-            st.session_state.processing_input = False
-            return f"❌ API Error: {e}\\nYour message was: '{user_input}'. Please check your connection and try again."
+            return f"❌ API Error: {str(e)[:100]}..."
         except Exception as e:
+            return f"❌ Unexpected error: {str(e)[:100]}..."
+        finally:
+            # ALWAYS clear processing flag
             st.session_state.processing_input = False
-            return f"❌ Unexpected error: {e}\\nYour message was: '{user_input}'. Please try again."
 
     def validate_current_structure(self) -> List[str]:
         """Validate the current seed file structure and return issues."""
@@ -372,7 +407,328 @@ Begin every conversation by understanding their specific use case and goals."""
             if underscore_vars:
                 issues.append(f"Found underscore variables that may cause issues: {underscore_vars}")
         
+        # Add nested variable validation
+        issues.extend(self.validate_nested_variables(st.session_state.current_seed))
+        
         return issues
+
+    def validate_nested_variables(self, seed_data: Dict) -> List[str]:
+        """Validate nested variable structure"""
+        issues = []
+
+        if 'variables' not in seed_data:
+            return issues
+
+        for var_name, var_value in seed_data['variables'].items():
+            if isinstance(var_value, dict):
+                # This should create _key and _value variables
+                if 'constants' in seed_data and 'prompt' in seed_data['constants']:
+                    prompt = seed_data['constants']['prompt']
+                    
+                    key_usage = f"{var_name}_key" in prompt
+                    value_usage = f"{var_name}_value" in prompt
+                    
+                    if not key_usage:
+                        issues.append(f"Nested variable '{var_name}' missing {var_name}_key usage in prompt")
+                    
+                    if not value_usage:
+                        issues.append(f"Nested variable '{var_name}' missing {var_name}_value usage in prompt")
+                    
+                    # Check for direct usage (incorrect)
+                    if f"{{{var_name}}}" in prompt:
+                        issues.append(f"Don't use {{{var_name}}} directly. Use {{{var_name}_key}} and {{{var_name}_value}} instead")
+
+        return issues
+    
+    def save_chat_session(self, session_name: str = None):
+        """Save current chat session with optional custom name"""
+        if not session_name:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            session_name = f"chat_{timestamp}"
+        
+        chat_data = {
+            "session_name": session_name,
+            "messages": st.session_state.architect_messages,
+            "current_seed": st.session_state.current_seed,
+            "timestamp": datetime.now().isoformat(),
+            "message_count": len(st.session_state.architect_messages) - 1  # Exclude system prompt
+        }
+        
+        # Save to chats directory
+        chats_dir = dir_manager.get_chats_dir()  # Need to add this to directory_manager
+        chat_file = chats_dir / f"{session_name}.json"
+        dir_manager.save_json(chat_file, chat_data)
+        return str(chat_file)
+
+    def load_chat_session(self, chat_file_path: str):
+        """Load a saved chat session"""
+        try:
+            chat_data = dir_manager.load_json(chat_file_path)
+            st.session_state.architect_messages = chat_data.get("messages", [])
+            st.session_state.current_seed = chat_data.get("current_seed", {})
+            return True
+        except Exception as e:
+            st.error(f"Error loading chat: {e}")
+            return False
+
+    def get_recent_chats(self) -> List[Dict]:
+        """Get list of recent chat sessions"""
+        chats_dir = dir_manager.get_chats_dir()
+        if not chats_dir.exists():
+            return []
+        
+        chats = []
+        for chat_file in chats_dir.glob("*.json"):
+            try:
+                chat_data = dir_manager.load_json(chat_file)
+                chats.append({
+                    "name": chat_data.get("session_name", chat_file.stem),
+                    "path": str(chat_file),
+                    "timestamp": chat_data.get("timestamp", "Unknown"),
+                    "message_count": chat_data.get("message_count", 0),
+                    "has_seed": bool(chat_data.get("current_seed"))
+                })
+            except Exception:
+                continue
+        
+        # Sort by timestamp (newest first)
+        chats.sort(key=lambda x: x["timestamp"], reverse=True)
+        return chats[:10]  # Return last 10 chats
+    
+    # Replace current validation handling with sticky/floating validation
+    def show_validation_results(self):
+        """Show validation in a better positioned container"""
+        issues = self.validate_current_structure()
+        
+        # Use columns to center the validation popup
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if not issues or issues == ["No seed file to validate yet."]:
+                if st.session_state.current_seed:
+                    st.success("✅ Seed file structure looks good!")
+                else:
+                    st.info("ℹ️ No seed file to validate yet.")
+            else:
+                st.error("❌ Validation Issues Found:")
+                for issue in issues:
+                    st.write(f"• {issue}")
+
+    # Add custom naming to save functions
+    def save_with_custom_name(self):
+        """Save with user-defined name"""
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            custom_name = st.text_input(
+                "Seed File Name:", 
+                placeholder="e.g., customer_support_conversations",
+                key="custom_seed_name"
+            )
+        
+        with col2:
+            if st.button("💾 Save", disabled=not custom_name):
+                if custom_name and st.session_state.current_seed:
+                    try:
+                        # Sanitize filename
+                        safe_name = re.sub(r'[^\w\-_]', '_', custom_name)
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"{safe_name}_{timestamp}.json"
+                        
+                        seed_dir = dir_manager.get_seed_files_dir()
+                        filepath = seed_dir / filename
+                        
+                        # Enhanced save data
+                        save_data = {
+                            "seed_file": st.session_state.current_seed,
+                            "metadata": {
+                                "user_name": custom_name,
+                                "created": datetime.now().isoformat(),
+                                "conversation_length": len(st.session_state.architect_messages) - 1
+                            }
+                        }
+                        
+                        dir_manager.save_json(filepath, save_data)
+                        
+                        # Success popup in center
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            st.success(f"✅ Seed file '{custom_name}' saved successfully!")
+                            st.info(f"📂 Location: {filepath}")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error saving: {e}")
+
+    def handle_finalize_command(self, user_input: str) -> bool:
+        """Handle finalize command with proper feedback"""
+        if "finalize" in user_input.lower():
+            if st.session_state.current_seed:
+                # Show finalization process
+                with st.spinner("🔄 Finalizing seed file..."):
+                    time.sleep(1)  # Brief pause for UX
+                    
+                    # Validate before finalizing
+                    issues = self.validate_current_structure()
+                    if issues and issues != ["No seed file to validate yet."]:
+                        col1, col2, col3 = st.columns([1, 2, 1])
+                        with col2:
+                            st.warning("⚠️ Seed file has validation issues:")
+                            for issue in issues:
+                                st.write(f"• {issue}")
+                            
+                            st.write("**Proceed anyway?**")
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                if st.button("✅ Yes, Finalize"):
+                                    return self._complete_finalization()
+                            with col_b:
+                                if st.button("❌ Fix Issues First"):
+                                    st.session_state.show_validation = True
+                                    return True
+                    else:
+                        return self._complete_finalization()
+            else:
+                st.error("❌ No seed file to finalize!")
+                return True
+        return False
+
+    def _complete_finalization(self) -> bool:
+        """Complete the finalization process"""
+        # Center the success message
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.success("🎉 Seed file finalized successfully!")
+            
+            # Show save options
+            st.write("**Save Options:**")
+            
+            # Custom name input
+            custom_name = st.text_input(
+                "Seed File Name:", 
+                value="finalized_seed",
+                key="finalize_name"
+            )
+            
+            col_a, col_b = st.columns(2)
+            with col_a:
+                if st.button("💾 Save to Files", use_container_width=True):
+                    self._save_finalized_seed(custom_name)
+            
+            with col_b:
+                if st.button("📤 Export to Workflow", use_container_width=True):
+                    self._export_to_workflow(custom_name)
+        
+        return True
+
+    def _save_finalized_seed(self, name: str):
+        """Save finalized seed with user feedback"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = re.sub(r'[^\w\-_]', '_', name)
+            filename = f"{safe_name}_{timestamp}.json"
+            
+            seed_dir = dir_manager.get_seed_files_dir()
+            filepath = seed_dir / filename
+            
+            dir_manager.save_json(filepath, st.session_state.current_seed)
+            
+            st.success(f"✅ Seed file '{name}' saved!")
+            st.info(f"📍 Saved to: {filepath}")
+            
+        except Exception as e:
+            st.error(f"❌ Save error: {e}")
+
+    def _export_to_workflow(self, name: str):
+        """Export seed to workflow with feedback"""
+        try:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = re.sub(r'[^\w\-_]', '_', name)
+            filename = f"{safe_name}_{timestamp}.json"
+            
+            seed_dir = dir_manager.get_seed_files_dir()
+            filepath = seed_dir / filename
+            
+            dir_manager.save_json(filepath, st.session_state.current_seed)
+            
+            st.success(f"✅ Seed file '{name}' exported to workflow!")
+            st.info(f"📍 Available in: {filepath}")
+            
+        except Exception as e:
+            st.error(f"❌ Export error: {e}")
+
+    def handle_chat_input_safely(self):
+        """Safely handle chat input with backup and recovery"""
+        
+        # Pre-store the input before processing
+        if 'temp_user_input' not in st.session_state:
+            st.session_state.temp_user_input = ""
+        
+        # Dynamic placeholder based on conversation state
+        if len(st.session_state.architect_messages) == 1:
+            placeholder = "Describe your synthetic data use case..."
+        else:
+            placeholder = "Continue the conversation..."
+        
+        # Show processing status
+        if st.session_state.get('processing_input', False):
+            st.info("⏳ Processing your request... Please wait.")
+            return
+        
+        # Chat input with enhanced error handling
+        user_input = st.chat_input(
+            placeholder, 
+            disabled=st.session_state.get('processing_input', False),
+            key="main_chat_input"
+        )
+        
+        if user_input and user_input.strip():
+            # Immediately store input for recovery
+            st.session_state.temp_user_input = user_input
+            st.session_state.last_user_input = user_input
+            
+            # Display user message immediately
+            st.chat_message("user").write(user_input)
+            
+            # Check for finalize command first
+            if self.handle_finalize_command(user_input):
+                st.session_state.temp_user_input = ""
+                return
+            
+            # Process AI response with proper error handling
+            with st.chat_message("assistant"):
+                with st.spinner("🤖 Thinking..."):
+                    try:
+                        ai_response = self.get_ai_response(user_input)
+                        st.write(ai_response)
+                        
+                        # Clear temp input on success
+                        st.session_state.temp_user_input = ""
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error processing input: {str(e)[:100]}...")
+                        # Keep input for retry but ensure processing flag is cleared
+                        st.session_state.processing_input = False
+
+    def _retry_input(self, input_text: str):
+        """Retry processing an input"""
+        try:
+            with st.spinner("🔄 Retrying..."):
+                ai_response = self.get_ai_response(input_text)
+                st.success("✅ Input processed successfully!")
+                st.session_state.temp_user_input = ""
+                st.rerun()
+        except Exception as e:
+            st.error(f"❌ Retry failed: {e}")
+
+    def check_app_state(self):
+        """Check and display app state for debugging"""
+        if st.session_state.get('processing_input', False):
+            st.warning("⚠️ App is in processing state. Use Emergency Reset if stuck.")
+        
+        # Show debug info in sidebar if processing is stuck
+        if st.session_state.get('processing_input', False):
+            with st.sidebar:
+                st.error("🚨 Processing stuck - click Emergency Reset!")
+
 
 def main():
     """Main Streamlit app for Seed File Architect."""
@@ -407,24 +763,20 @@ def main():
     
     architect = StreamlitSeedFileArchitect()
     
-    # Header with navigation
+    # Centered header without redundant navigation
     col1, col2, col3 = st.columns([1, 2, 1])
-    with col1:
-        if st.button("🏠 Back to Dashboard"):
-            st.switch_page("app.py")
     
     with col2:
         st.title("🏗️ Seed File Architect")
         show_persistent_message()
         st.markdown("### Your Expert Partner in Synthetic Data Design")
     
-    with col3:
-        if st.button("🔄 Workflow Editor"):
-            st.switch_page("pages/workflow_editor.py")
-    
     # Initialize client
     if not architect.initialize_client():
         st.stop()
+    
+    # Check app state for issues
+    architect.check_app_state()
     
     # Initialize conversation
     if not st.session_state.architect_messages:
@@ -448,18 +800,92 @@ def main():
                 if st.session_state.architect_messages and not st.session_state.processing_input:
                     response = architect.get_ai_response("finalize")
                     st.session_state.show_ai_response = response
+
+        st.subheader("💬 Chat Management")
         
+        # Emergency reset button (always visible)
+        if st.button("🚨 Emergency Reset", use_container_width=True, type="secondary"):
+            # Force clear all processing states
+            for key in list(st.session_state.keys()):
+                if key.startswith('processing') or key.startswith('temp_') or key.startswith('show_'):
+                    del st.session_state[key]
+            st.session_state.processing_input = False
+            st.session_state.temp_user_input = ""
+            st.success("🔄 App state reset! You can now continue.")
+            st.rerun()
+    
+        col3, col4 = st.columns(2)
+        with col3:
+            if st.button("🆕 New Chat", use_container_width=True):
+                # Clear conversation state
+                st.session_state.architect_messages = [{"role": "system", "content": architect.SYSTEM_PROMPT}]
+                st.session_state.current_seed = {}
+                st.session_state.last_user_input = ""
+                st.session_state.processing_input = False
+                st.session_state.temp_user_input = ""
+                # Clear any existing popups
+                st.session_state.show_current = False
+                st.session_state.show_validation = False
+                st.session_state.show_examples = False
+                st.rerun()
+
+        with col4:
+            # Save current chat before starting new
+            if st.button("💾 Save & New", use_container_width=True):
+                if st.session_state.architect_messages and len(st.session_state.architect_messages) > 1:
+                    # Auto-save current conversation
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    auto_save_name = f"chat_backup_{timestamp}"
+                    architect.save_chat_session(auto_save_name)
+                # Then start new chat (same as above)
+                st.session_state.architect_messages = [{"role": "system", "content": architect.SYSTEM_PROMPT}]
+                st.session_state.current_seed = {}
+                st.rerun()
+
+        st.subheader("📚 Recent Chats")
+        recent_chats = architect.get_recent_chats()
+        
+        if recent_chats:
+            for chat in recent_chats:
+                with st.expander(f"💬 {chat['name'][:20]}...", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    with col1:
+                        st.caption(f"Messages: {chat['message_count']}")
+                        st.caption(f"Seed: {'✅' if chat['has_seed'] else '❌'}")
+                    with col2:
+                        if st.button("📂", key=f"load_{chat['path']}", help="Load chat"):
+                            if architect.load_chat_session(chat['path']):
+                                st.success("Chat loaded!")
+                                st.rerun()
+        else:
+            st.info("No recent chats")
+            
         # Input recovery section
-        if st.session_state.last_user_input:
+        if st.session_state.temp_user_input or st.session_state.last_user_input:
             st.divider()
             st.subheader("🔄 Input Recovery")
-            st.write("Last input:")
-            st.code(st.session_state.last_user_input)
-            if st.button("🔄 Retry Last Input", use_container_width=True):
-                if not st.session_state.processing_input:
-                    response = architect.get_ai_response(st.session_state.last_user_input)
-                    st.session_state.show_ai_response = response
-                    st.rerun()
+            
+            if st.session_state.temp_user_input:
+                st.warning("⚠️ Last input may have been lost:")
+                st.code(st.session_state.temp_user_input)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🔄 Retry", use_container_width=True):
+                        # Re-process the lost input
+                        architect._retry_input(st.session_state.temp_user_input)
+                with col2:
+                    if st.button("🗑️ Discard", use_container_width=True):
+                        st.session_state.temp_user_input = ""
+                        st.rerun()
+            
+            elif st.session_state.last_user_input:
+                st.info("Last successful input:")
+                st.code(st.session_state.last_user_input)
+                if st.button("🔄 Retry Last", use_container_width=True):
+                    architect._retry_input(st.session_state.last_user_input)
+        else:
+            st.info("No recent chats")
         
         # Save functionality
         st.divider()
@@ -506,17 +932,7 @@ def main():
         st.session_state.show_current = False
     
     if hasattr(st.session_state, 'show_validation') and st.session_state.show_validation:
-        with st.expander("🔍 Validation Results", expanded=True):
-            issues = architect.validate_current_structure()
-            if not issues or issues == ["No seed file to validate yet."]:
-                if st.session_state.current_seed:
-                    st.success("✅ Seed file structure looks good!")
-                else:
-                    st.info("⚠️ No seed file to validate yet.")
-            else:
-                st.warning("⚠️ Validation Issues Found:")
-                for issue in issues:
-                    st.write(f"• {issue}")
+        architect.show_validation_results()
         st.session_state.show_validation = False
     
     # Examples functionality
@@ -588,18 +1004,8 @@ def main():
         st.chat_message("assistant").write(st.session_state.show_ai_response)
         del st.session_state.show_ai_response
     
-    # Dynamic chat input placeholder
-    placeholder_text = "Describe your synthetic data use case..." if len(st.session_state.architect_messages) == 1 else "Continue the conversation..."
-    
-    # Chat input
-    if user_input := st.chat_input(placeholder_text, disabled=st.session_state.processing_input):
-        if user_input.strip():
-            st.chat_message("user").write(user_input)
-            
-            with st.chat_message("assistant"):
-                with st.spinner("🤖 Thinking..."):
-                    ai_response = architect.get_ai_response(user_input)
-                st.write(ai_response)
+    # Use the new safe chat input handling
+    architect.handle_chat_input_safely()
     
     # Initial message if no conversation yet
     if len(st.session_state.architect_messages) == 1:

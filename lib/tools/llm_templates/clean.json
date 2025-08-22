@@ -11,7 +11,7 @@
         "method": "POST",
         "url": "/v1/responses",
         "body": {
-            "model": "gpt-5",
+            "model": "gpt-5-mini",
             "input": [
                 {"role": "system", "content": "Decide if following data fullfills the following criteria: __criteria__. Return a JSON object with the following fields: 'status' (select one of __criteria_array__ according to the criteria)"},
                 {"role": "user", "content": "__dirty_data__"}
