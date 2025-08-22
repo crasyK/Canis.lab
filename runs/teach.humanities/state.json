@@ -1,0 +1,33 @@
+{
+  "name": "teach.humanities",
+  "status": "running",
+  "nodes": [
+    {
+      "name": "raw_seed_data",
+      "file_name": "runs/teach.humanities/data/raw_seed_data.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "uploaded"
+    }
+  ],
+  "state_steps": [
+    {
+      "name": "recovered_seed",
+      "type": "llm",
+      "status": "uploaded",
+      "tool_name": "seed",
+      "batch": {
+        "in": "",
+        "upload_id": "batch_68a8995a89d0819085f02d8e6a2dd8a3",
+        "out": "runs/teach.humanities/batch/recovered_seed_results.jsonl"
+      },
+      "data": {
+        "in": {},
+        "out": {
+          "raw_seed_data": "runs/teach.humanities/data/raw_seed_data.json"
+        }
+      }
+    }
+  ]
+}

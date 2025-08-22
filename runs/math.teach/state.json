@@ -1,6 +1,6 @@
 {
   "name": "math.teach_20250822183107",
-  "status": "running",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -20,18 +20,18 @@
     },
     {
       "name": "raw_seed_data",
-      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/raw_seed_data.json",
+      "file_name": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/raw_seed_data_extracted.json",
       "type": {
         "str": "data"
       },
-      "state": "uploaded"
+      "state": "completed"
     }
   ],
   "state_steps": [
     {
       "name": "seed",
       "type": "llm",
-      "status": "uploaded",
+      "status": "completed",
       "tool_name": "",
       "batch": {
         "in": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/batch/seed_batch.jsonl",
@@ -43,7 +43,7 @@
         "out": {
           "user_prompt": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/user_prompt.json",
           "system_prompt": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/system_prompt.json",
-          "raw_seed_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/raw_seed_data.json"
+          "raw_seed_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/math.teach_20250822183107/data/raw_seed_data_extracted.json"
         }
       }
     }
