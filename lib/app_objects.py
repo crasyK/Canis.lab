@@ -68,18 +68,40 @@ class step(object):
 
     def get_parent_style(self):
         """Get styling for parent node based on type and status"""
-        # Border color based on type (changed from text color)
-        border_color = '#0066cc' if self.step_type == 'llm' else '#ff8c00' # blue for llm, orange for code
+        # Check if this is a test step
+        is_test_step = self.step_name.startswith('test_')
         
-        # Background color based on status
-        backgroundColor = '#808080' if self.status == 'uploaded' else 'white' # grey for running, white for completed
+        # Border and background styling based on test status
+        if is_test_step and self.status == 'completed':
+            border_color = '#FF8C00'  # Orange for test steps
+            backgroundColor = '#FFF8DC'  # Light cream background
+            border_style = 'dashed'
+            border_width = '3px'
+        elif is_test_step and self.status == 'failed':
+            border_color = '#FF4444'  # Red for failed tests
+            backgroundColor = '#FFE4E1'  # Light red background
+            border_style = 'dashed'
+            border_width = '3px'
+        elif is_test_step:
+            border_color = '#FFA500'  # Orange for pending test steps
+            backgroundColor = '#FFFAF0'  # Very light orange
+            border_style = 'dashed'
+            border_width = '2px'
+        else:
+            # Regular step styling
+            border_color = '#0066cc' if self.step_type == 'llm' else '#ff8c00' # blue for llm, orange for code
+            backgroundColor = '#808080' if self.status == 'uploaded' else 'white' # grey for running, white for completed
+            border_style = 'solid'
+            border_width = '2px'
         
         return {
             'color': 'black',  # Text color is always black now
             'backgroundColor': backgroundColor,
-            'border': f'2px solid {border_color}',
+            'border': f'{border_width} {border_style} {border_color}',
+            'borderRadius': '8px',
             'width': '200px',
-            'height': f'{self.markers_count_column*50+self.markers_count_column*10+40+10}px'
+            'height': f'{self.markers_count_column*50+self.markers_count_column*10+40+10}px',
+            'boxShadow': '2px 2px 4px rgba(0,0,0,0.1)' if is_test_step else 'none'
         }
 
     def is_single_data(self, file_path):
@@ -89,13 +111,22 @@ class step(object):
         # Single data doesn't start with 'runs/' and doesn't end with file extensions
         return not (file_path.startswith('runs/') or file_path.endswith(('.json', '.jsonl', '.txt', '.csv')))
 
-    def get_child_style(self, marker_name, file_path):
+    def get_child_style(self, marker_name, file_path, is_output=False):
         """Get styling for child nodes based on data type from nodes_info"""
         style = {
             'color': 'black',
             'width': '100px',
             'height': '50px'
         }
+        
+        # Add clickable styling for completed output markers
+        if is_output and self.status == 'completed':
+            style.update({
+                'cursor': 'pointer',
+                'boxShadow': '0 0 8px rgba(0,150,255,0.6)',
+                'borderRadius': '4px',
+                'transition': 'all 0.3s ease'
+            })
         
         # Check if it's a single data block first
         node_info = self.find_node_by_file_path(file_path)
@@ -238,7 +269,7 @@ class step(object):
                 for marker_key, file_path in input_data.items():
                     input_counter += 1
                     display_name = self.get_marker_display_name(marker_key, file_path)
-                    child_style = self.get_child_style(marker_key, file_path)
+                    child_style = self.get_child_style(marker_key, file_path, is_output=False)
                     
                     self.arr.append(StreamlitFlowNode(
                         f'{self.step_number}-in-{input_counter}',
@@ -256,7 +287,7 @@ class step(object):
                 for marker_key, file_path in output_data.items():
                     output_counter += 1
                     display_name = self.get_marker_display_name(marker_key, file_path)
-                    child_style = self.get_child_style(marker_key, file_path)
+                    child_style = self.get_child_style(marker_key, file_path, is_output=True)
                     
                     self.arr.append(StreamlitFlowNode(
                         f'{self.step_number}-out-{output_counter}',

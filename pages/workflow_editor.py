@@ -56,6 +56,14 @@ if 'show_create_workflow_dialog' not in st.session_state:
     st.session_state.show_create_workflow_dialog = False
 if 'show_single_data_dialog' not in st.session_state:
     st.session_state.show_single_data_dialog = False
+if 'selected_marker_data' not in st.session_state:
+    st.session_state.selected_marker_data = None
+if 'selected_marker_name' not in st.session_state:
+    st.session_state.selected_marker_name = None
+if 'test_mode_enabled' not in st.session_state:
+    st.session_state.test_mode_enabled = False
+if 'retry_test' not in st.session_state:
+    st.session_state.retry_test = False
 
 def get_available_seed_files():
     """Get list of available seed files from seed_files directory"""
@@ -80,6 +88,239 @@ def preview_seed_file(file_path):
     except Exception as e:
         st.error(f"Error reading seed file: {e}")
         return None, None
+
+def is_completed_output_marker(node_id, current_state_data):
+    """Check if a node represents a completed output marker"""
+    if not ('-out-' in node_id):
+        return False
+    
+    # Extract step number from node ID
+    step_number = int(node_id.split('-')[0])
+    
+    # Check if step exists and is completed
+    if step_number <= len(current_state_data.get('state_steps', [])):
+        step_data = current_state_data['state_steps'][step_number - 1]
+        return step_data.get('status') == 'completed'
+    
+    return False
+
+def load_marker_preview_data(node_id, current_state_data):
+    """Load one sample entry from marker data file"""
+    try:
+        # Extract step number and output index
+        parts = node_id.split('-')
+        step_number = int(parts[0])
+        output_index = int(parts[2])
+        
+        # Get step data
+        if step_number <= len(current_state_data.get('state_steps', [])):
+            step_data = current_state_data['state_steps'][step_number - 1]
+            output_data = step_data.get('data', {}).get('out', {})
+            
+            # Get the specific output marker
+            output_keys = list(output_data.keys())
+            if output_index <= len(output_keys):
+                marker_key = output_keys[output_index - 1]
+                marker_file_path = output_data[marker_key]
+                
+                # Resolve full file path
+                workflow_name = current_state_data.get('name', 'unknown')
+                full_file_path = dir_manager.get_workflow_path(workflow_name) / marker_file_path
+                
+                if full_file_path.exists():
+                    with open(full_file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Return one sample entry based on data structure
+                    if isinstance(data, dict) and data:
+                        first_key = next(iter(data.keys()))
+                        return {first_key: data[first_key]}
+                    elif isinstance(data, list) and data:
+                        return data[0] if data else {}
+                    else:
+                        return data
+                else:
+                    return {"error": f"Data file not found: {marker_file_path}"}
+        
+        return {"error": "Could not resolve marker data"}
+        
+    except Exception as e:
+        return {"error": f"Could not load data: {str(e)}"}
+
+def get_marker_display_name(node_id, current_state_data):
+    """Get display name for a marker from node ID"""
+    try:
+        # Extract step number and output index
+        parts = node_id.split('-')
+        step_number = int(parts[0])
+        output_index = int(parts[2])
+        
+        # Get step data
+        if step_number <= len(current_state_data.get('state_steps', [])):
+            step_data = current_state_data['state_steps'][step_number - 1]
+            output_data = step_data.get('data', {}).get('out', {})
+            
+            # Get the specific output marker key
+            output_keys = list(output_data.keys())
+            if output_index <= len(output_keys):
+                marker_key = output_keys[output_index - 1]
+                step_name = step_data.get('name', f'Step {step_number}')
+                return f"{step_name} → {marker_key}"
+        
+        return f"Output {node_id}"
+        
+    except Exception as e:
+        return f"Marker {node_id}"
+
+def handle_marker_click(node_id, current_state_data):
+    """Handle clicks on output markers"""
+    if is_completed_output_marker(node_id, current_state_data):
+        marker_data = load_marker_preview_data(node_id, current_state_data)
+        st.session_state.selected_marker_data = marker_data
+        st.session_state.selected_marker_name = get_marker_display_name(node_id, current_state_data)
+        return True
+    return False
+
+def render_data_preview_section():
+    """Render expandable data preview section at bottom of editor"""
+    if st.session_state.selected_marker_data is not None:
+        st.divider()
+        
+        with st.expander(f"📊 Data Preview: {st.session_state.selected_marker_name or 'Unknown'}", expanded=True):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.json(st.session_state.selected_marker_data)
+            
+            with col2:
+                if st.button("Clear Preview", key="clear_preview"):
+                    st.session_state.selected_marker_data = None
+                    st.session_state.selected_marker_name = None
+                    st.rerun()
+                
+                # Show data type and size info
+                data = st.session_state.selected_marker_data
+                if isinstance(data, dict):
+                    st.caption(f"Type: Dictionary\nKeys: {len(data)}")
+                elif isinstance(data, list):
+                    st.caption(f"Type: List\nItems: {len(data)}")
+                else:
+                    st.caption(f"Type: {type(data).__name__}")
+
+def calculate_seed_combinations_with_breakdown(seed_data):
+    """Calculate total combinations and provide detailed breakdown"""
+    from lib.tools.seed import normalize_variables, generate_entries
+    
+    variables = seed_data.get('variables', {})
+    
+    if not variables:
+        return 0, []
+    
+    try:
+        # Use existing seed calculation logic
+        dimensions = normalize_variables(variables)
+        entries = generate_entries(dimensions)
+        total_combinations = len(entries)
+        
+        # Create breakdown details
+        breakdown_details = []
+        
+        for var_name, var_value in variables.items():
+            if isinstance(var_value, list):
+                count = len(var_value)
+                breakdown_details.append(f"{var_name}: {count} options")
+                
+            elif isinstance(var_value, dict):
+                # For nested structures, count branches and total leaf values
+                branch_count = len(var_value.keys())
+                total_leaf_count = sum(len(flatten_leaves(branch_val)) for branch_val in var_value.values())
+                
+                breakdown_details.append(f"{var_name}_key: {branch_count} categories")
+                breakdown_details.append(f"{var_name}_value: {total_leaf_count} total values")
+                
+            else:
+                # Scalar value
+                breakdown_details.append(f"{var_name}: 1 option")
+        
+        return total_combinations, breakdown_details
+        
+    except Exception as e:
+        return 0, [f"Error calculating combinations: {str(e)}"]
+
+def flatten_leaves(value):
+    """Recursively flatten nested structures to count leaf values"""
+    if isinstance(value, list):
+        result = []
+        for item in value:
+            result.extend(flatten_leaves(item))
+        return result
+    elif isinstance(value, dict):
+        result = []
+        for k, v in value.items():
+            result.extend(flatten_leaves(v))
+        return result
+    else:
+        return [value]
+
+def sample_input_data_for_test(connections, current_state_data, max_entries=5):
+    """Sample random entries from connected data sources for testing"""
+    import random
+    sampled_data = {}
+    
+    for param_name, data_source in connections.items():
+        try:
+            # Handle single data blocks
+            for node in current_state_data.get('nodes', []):
+                if node.get('name') == data_source and node.get('state') == 'single_data':
+                    sampled_data[param_name] = node.get('file_name')  # Single value
+                    break
+            else:
+                # Handle file-based data
+                # Find the node with this name
+                marker_node = None
+                for node in current_state_data.get('nodes', []):
+                    if node.get('name') == data_source:
+                        marker_node = node
+                        break
+                
+                if marker_node:
+                    workflow_name = current_state_data.get('name', 'unknown')
+                    full_file_path = dir_manager.get_workflow_path(workflow_name) / marker_node['file_name']
+                    
+                    if full_file_path.exists():
+                        with open(full_file_path, 'r') as f:
+                            full_data = json.load(f)
+                        
+                        if isinstance(full_data, dict):
+                            # Sample random keys from dictionary
+                            available_keys = list(full_data.keys())
+                            sample_size = min(max_entries, len(available_keys))
+                            sampled_keys = random.sample(available_keys, sample_size)
+                            sampled_data[param_name] = {k: full_data[k] for k in sampled_keys}
+                            
+                        elif isinstance(full_data, list):
+                            # Sample random items from list
+                            sample_size = min(max_entries, len(full_data))
+                            sampled_data[param_name] = random.sample(full_data, sample_size)
+                            
+                        else:
+                            # Single value data
+                            sampled_data[param_name] = full_data
+                    else:
+                        sampled_data[param_name] = f"Error: File not found"
+                else:
+                    sampled_data[param_name] = f"Error: Data source '{data_source}' not found"
+                    
+        except Exception as e:
+            print(f"Error sampling data for {param_name}: {e}")
+            sampled_data[param_name] = f"Error: {str(e)}"
+    
+    return sampled_data
+
+def add_test_step(step_type, step_name, tool_name):
+    """Add a test step with proper input/output marker mapping"""
+    test_step_name = f"test_{step_name}"
+    add_pending_step(step_type, test_step_name, tool_name)
 
 def create_single_data_edges_from_state(state_data, flow_state):
     """Recreate edges for single data connections based on workflow state"""
@@ -974,10 +1215,24 @@ if st.session_state.current_workflow and st.session_state.flow_state:
 
                     if selected_seed:
                         seed_file_path = selected_seed['path']
-                        # Show preview
-                        with st.expander("🔍 Preview Seed File", expanded=False):
+                        # Show enhanced preview with entry count
+                        with st.expander("📋 Seed File Preview & Analysis", expanded=True):
                             seed_content, metadata = preview_seed_file(selected_seed['path'])
                             if seed_content:
+                                # Calculate and display entry count
+                                total_entries, breakdown = calculate_seed_combinations_with_breakdown(seed_content)
+                                
+                                # Entry count display
+                                col1, col2 = st.columns([1, 2])
+                                with col1:
+                                    st.metric("📊 Total Entries", f"{total_entries:,}")
+                                
+                                with col2:
+                                    if breakdown:
+                                        st.write("**Combination Breakdown:**")
+                                        for detail in breakdown:
+                                            st.caption(f"• {detail}")
+                                
                                 # Show metadata if available
                                 if metadata:
                                     col1, col2 = st.columns(2)
@@ -1046,13 +1301,28 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                 available_llm_tools = get_available_llm_tools()
                 selected_llm_tool = st.selectbox("Select LLM Tool:", available_llm_tools, key="llm_tool_select")
 
+                # Test mode toggle
+                st.divider()
+                test_mode = st.checkbox(
+                    "🧪 **Test Mode** - Run on 5 random entries first",
+                    key="llm_test_mode",
+                    help="Test your configuration on a small sample before processing the full dataset"
+                )
+                
+                if test_mode:
+                    st.info("📝 Test mode will create a separate test step that you can inspect before running the full dataset.")
+
                 col1, col2 = st.columns(2)
                 with col1:
                     submitted = st.form_submit_button("Add LLM Tool")
                     if submitted:
                         if step_name and selected_llm_tool:
-                            add_pending_step('llm', step_name, selected_llm_tool)
-                            set_message('success', f"🤖 LLM tool '{selected_llm_tool}' added to pending steps!")
+                            if test_mode:
+                                add_test_step('llm', step_name, selected_llm_tool)
+                                set_message('success', f"🧪 LLM test step '{selected_llm_tool}' added to pending steps!")
+                            else:
+                                add_pending_step('llm', step_name, selected_llm_tool)
+                                set_message('success', f"🤖 LLM tool '{selected_llm_tool}' added to pending steps!")
                             st.session_state.show_llm_dialog = False
                             st.rerun()
                         else:
@@ -1072,13 +1342,28 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                 available_code_tools = get_available_code_tools()
                 selected_code_tool = st.selectbox("Select Code Tool:", available_code_tools, key="code_tool_select")
 
+                # Test mode toggle
+                st.divider()
+                test_mode = st.checkbox(
+                    "🧪 **Test Mode** - Run on 5 random entries first",
+                    key="code_test_mode",
+                    help="Test your configuration on a small sample before processing the full dataset"
+                )
+                
+                if test_mode:
+                    st.info("📝 Test mode will create a separate test step that you can inspect before running the full dataset.")
+
                 col1, col2 = st.columns(2)
                 with col1:
                     submitted = st.form_submit_button("Add Code Tool")
                     if submitted:
                         if step_name and selected_code_tool:
-                            add_pending_step('code', step_name, selected_code_tool)
-                            set_message('success', f"⚙️ Code tool '{selected_code_tool}' added to pending steps!")
+                            if test_mode:
+                                add_test_step('code', step_name, selected_code_tool)
+                                set_message('success', f"🧪 Code test step '{selected_code_tool}' added to pending steps!")
+                            else:
+                                add_pending_step('code', step_name, selected_code_tool)
+                                set_message('success', f"⚙️ Code tool '{selected_code_tool}' added to pending steps!")
                             st.session_state.show_code_dialog = False
                             st.rerun()
                         else:
@@ -1234,6 +1519,12 @@ if st.session_state.current_workflow and st.session_state.flow_state:
         min_zoom=0.1,
     ) 
 
+    # Handle node clicks for data preview
+    if updated_flow_state.selected_id:
+        selected_id = updated_flow_state.selected_id
+        if handle_marker_click(selected_id, current_state_data):
+            st.rerun()
+
     # Handle node updates (dragging) - NO FORCED REFRESH
     nodes_updated = False
     for node in updated_flow_state.nodes:
@@ -1301,6 +1592,9 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                         break
         else:
             st.info(f"Selected ID: {selected_id} (Node details not available)")
+
+    # Data preview section
+    render_data_preview_section()
 
 else:
     st.info("👆 Please create a new workflow or load an existing one from the sidebar.")
