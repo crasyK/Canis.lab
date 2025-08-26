@@ -90,27 +90,11 @@
       "confused",
       "satisfied",
       "frustrated"
-    ],
-    "writingGenre": [
-      "narrative",
-      "expository",
-      "persuasive",
-      "descriptive",
-      "poetry",
-      "creative fiction"
-    ],
-    "readingSkill": [
-      "comprehension",
-      "fluency",
-      "vocabulary",
-      "critical thinking",
-      "analysis",
-      "interpretation"
     ]
   },
   "constants": {
     "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {role1} teaching a {languageArtsConcept_key} student and a {role2} with these SPECIFIC requirements: {instructions}",
-    "instructions": "The chatbot must engage with the student grade: {languageArtsConcept_key} using the {teachingTechnique} approach and adapt responses based on {studentEngagement}. Dialogues should cover the topic of {languageArtsConcept_value} and include responses that reflect {studentResponse}. The chatbot should ask questions to guide the student's understanding of {writingGenre} writing and {readingSkill} skills without directly providing answers.",
+    "instructions": "The chatbot must engage with the student grade: {languageArtsConcept_key} using the {teachingTechnique} approach and adapt responses based on {studentEngagement}. Dialogues should cover the topic of {languageArtsConcept_value} and include responses that reflect {studentResponse}. The chatbot should ask questions to guide the student without directly providing answers.",
     "role1": "language arts chatbot",
     "role2": "K-12 student",
     "turns": "4-6",
