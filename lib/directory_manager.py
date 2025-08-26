@@ -160,7 +160,7 @@ class DirectoryManager:
         
         with open(batch_file_path, 'w') as f:
             for item in batch_data:
-                f.write(json.dumps(item) + '\\n')
+                f.write(json.dumps(item) + '\n')
         
         print(f"✅ Saved batch file: {batch_file_path}")
         return str(batch_file_path)
@@ -298,26 +298,97 @@ class DirectoryManager:
         
         return seed_files
     
+    def get_relative_path(self, file_path):
+        """Convert any path to relative path from project root"""
+        path = Path(file_path)
+        
+        # If already relative and valid, return as-is
+        if not path.is_absolute():
+            return str(path)
+        
+        # Try to make relative to base directory
+        try:
+            relative_path = path.relative_to(self.base_dir)
+            return str(relative_path)
+        except ValueError:
+            # Path is outside base directory, extract meaningful part
+            path_str = str(path)
+            
+            # Look for 'runs/' in the path and extract from there
+            if '/runs/' in path_str:
+                runs_index = path_str.find('/runs/')
+                return path_str[runs_index + 1:]  # Remove leading slash
+            
+            # Fallback: return filename only
+            return path.name
+
+    def _normalize_paths_in_data(self, data):
+        """Recursively normalize all paths in data structure"""
+        if isinstance(data, dict):
+            normalized = {}
+            for key, value in data.items():
+                if key in ['file_name'] and isinstance(value, str):
+                    # Normalize file paths
+                    normalized[key] = self.get_relative_path(value)
+                elif key in ['in', 'out'] and isinstance(value, str):
+                    # Normalize batch paths
+                    normalized[key] = self.get_relative_path(value)
+                elif isinstance(value, dict) and key == 'data':
+                    # Handle step data paths
+                    normalized[key] = self._normalize_step_data_paths(value)
+                else:
+                    normalized[key] = self._normalize_paths_in_data(value)
+            return normalized
+        elif isinstance(data, list):
+            return [self._normalize_paths_in_data(item) for item in data]
+        else:
+            return data
+
+    def _normalize_step_data_paths(self, step_data):
+        """Normalize paths in step data (in/out)"""
+        normalized = {}
+        for io_type, io_data in step_data.items():
+            if isinstance(io_data, dict):
+                normalized[io_type] = {}
+                for key, path in io_data.items():
+                    if isinstance(path, str) and not self._is_single_data(path):
+                        normalized[io_type][key] = self.get_relative_path(path)
+                    else:
+                        normalized[io_type][key] = path
+            else:
+                normalized[io_type] = io_data
+        return normalized
+
+    def _is_single_data(self, file_path):
+        """Check if the data is single (not a file path)"""
+        if not isinstance(file_path, str):
+            return False
+        # Single data doesn't start with 'runs/' and doesn't end with file extensions
+        return not (file_path.startswith('runs/') or file_path.endswith(('.json', '.jsonl', '.txt', '.csv')))
+    
     def save_json(self, file_path, data):
-        """Safely save JSON data to a file with atomic operations"""
+        """Safely save JSON data to a file with atomic operations and path normalization"""
         file_path = normalize_path(file_path)
         file_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Normalize paths in the data before saving
+        normalized_data = self._normalize_paths_in_data(data)
         
         # Use atomic write with temporary file
         temp_path = file_path.with_suffix('.tmp')
         try:
             with open(temp_path, 'w') as f:
-                json.dump(data, f, indent=2)
+                json.dump(normalized_data, f, indent=2)
             temp_path.replace(file_path)
-            print(f"✅ Atomically saved JSON: {file_path}")
+            print(f"✅ Atomically saved JSON with normalized paths: {file_path}")
         except Exception as e:
             if temp_path.exists():
                 temp_path.unlink()
             raise e
     
     def atomic_save_json(self, file_path, data):
-        """Atomically save JSON data to prevent corruption"""
-        return self.save_json(file_path, data)
+        """Atomically save JSON data with path normalization"""
+        return self.save_json(file_path, data)  # Now includes path normalization
     
     def load_json(self, file_path):
         """Safely load JSON data from a file with security validation"""
@@ -453,7 +524,6 @@ class DirectoryManager:
                         return found_file
         
         return None
-
 
 
 # Create global instance

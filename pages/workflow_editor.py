@@ -144,11 +144,7 @@ def load_marker_preview_data(node_id, current_state_data):
                         "error": f"Data file not found: {marker_file_path}",
                         "debug_info": {
                             "original_path": marker_file_path,
-                            "searched_locations": [
-                                str(dir_manager.base_dir / marker_file_path),
-                                marker_file_path,
-                                f"runs/{current_state_data.get('name', 'unknown')}/data/" + Path(marker_file_path).name
-                            ]
+                            "resolved_path": str(resolved_path) if resolved_path else "None"
                         }
                     }
         
@@ -156,6 +152,7 @@ def load_marker_preview_data(node_id, current_state_data):
         
     except Exception as e:
         return {"error": f"Could not load data: {str(e)}"}
+
 
 
 def get_marker_display_name(node_id, current_state_data):
