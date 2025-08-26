@@ -1,3 +1,4 @@
+from anyio import Path
 import streamlit as st
 from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
@@ -105,7 +106,7 @@ def is_completed_output_marker(node_id, current_state_data):
     return False
 
 def load_marker_preview_data(node_id, current_state_data):
-    """Load one sample entry from marker data file"""
+    """Load one sample entry from marker data file with path resolution"""
     try:
         # Extract step number and output index
         parts = node_id.split('-')
@@ -123,12 +124,11 @@ def load_marker_preview_data(node_id, current_state_data):
                 marker_key = output_keys[output_index - 1]
                 marker_file_path = output_data[marker_key]
                 
-                # Resolve full file path
-                workflow_name = current_state_data.get('name', 'unknown')
-                full_file_path = dir_manager.get_workflow_path(workflow_name) / marker_file_path
+                # Use path resolution instead of manual path construction
+                resolved_path = dir_manager.resolve_path(marker_file_path)
                 
-                if full_file_path.exists():
-                    with open(full_file_path, 'r') as f:
+                if resolved_path and resolved_path.exists():
+                    with open(resolved_path, 'r') as f:
                         data = json.load(f)
                     
                     # Return one sample entry based on data structure
@@ -140,12 +140,23 @@ def load_marker_preview_data(node_id, current_state_data):
                     else:
                         return data
                 else:
-                    return {"error": f"Data file not found: {marker_file_path}"}
+                    return {
+                        "error": f"Data file not found: {marker_file_path}",
+                        "debug_info": {
+                            "original_path": marker_file_path,
+                            "searched_locations": [
+                                str(dir_manager.base_dir / marker_file_path),
+                                marker_file_path,
+                                f"runs/{current_state_data.get('name', 'unknown')}/data/" + Path(marker_file_path).name
+                            ]
+                        }
+                    }
         
         return {"error": "Could not resolve marker data"}
         
     except Exception as e:
         return {"error": f"Could not load data: {str(e)}"}
+
 
 def get_marker_display_name(node_id, current_state_data):
     """Get display name for a marker from node ID"""

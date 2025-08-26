@@ -411,5 +411,50 @@ class DirectoryManager:
         
         return summary
 
+    def resolve_path(self, file_path):
+        """Resolve path to absolute, trying multiple strategies"""
+        if not file_path:
+            return None
+            
+        path = Path(file_path)
+        
+        # Strategy 1: If absolute path exists, use it
+        if path.is_absolute() and path.exists():
+            return path
+        
+        # Strategy 2: Resolve relative to base directory
+        if not path.is_absolute():
+            resolved = self.base_dir / path
+            if resolved.exists():
+                return resolved
+        
+        # Strategy 3: If absolute path doesn't exist, try making it relative
+        if path.is_absolute():
+            path_str = str(path)
+            # Look for 'runs/' in the path and extract from there
+            if '/runs/' in path_str:
+                runs_index = path_str.find('/runs/')
+                relative_part = path_str[runs_index + 1:]  # Remove leading slash
+                resolved = self.base_dir / relative_part
+                if resolved.exists():
+                    return resolved
+        
+        # Strategy 4: Search for the filename in common locations
+        filename = path.name
+        search_paths = [
+            self.base_dir / 'runs',
+            self.base_dir,
+        ]
+        
+        for search_dir in search_paths:
+            if search_dir.exists():
+                for found_file in search_dir.rglob(filename):
+                    if found_file.is_file():
+                        return found_file
+        
+        return None
+
+
+
 # Create global instance
 dir_manager = DirectoryManager()

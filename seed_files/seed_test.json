@@ -7,23 +7,11 @@
       "agentType": [
         "Technical Support Agent",
         "Customer Service Representative"
-      ],
-      "issueType": [
-        "Product Not Working",
-        "Billing Inquiry"
-      ],
-      "responseQuality": [
-        "Detailed Response",
-        "Concise Response"
-      ],
-      "resolutionStatus": [
-        "Issue Resolved",
-        "Escalated to Supervisor"
       ]
     },
     "constants": {
       "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {customerType} and a {agentType} with these SPECIFIC requirements: {instructions}",
-      "instructions": "Ensure that the {customerType} clearly states their {issueType} and receives a {responseQuality} from the {agentType}. The conversation should end with the {resolutionStatus}.",
+      "instructions": "Ensure that the {customerType} clearly states their issue and receives a response from the {agentType}. The conversation should end with the resolution status.",
       "role1": "customer",
       "role2": "support agent",
       "turns": "4",

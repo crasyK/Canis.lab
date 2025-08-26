@@ -6,7 +6,7 @@ from .tools.batch import upload_batch, check_batch_job, download_batch_results, 
 from .tools.seed import generate_seed_batch_file
 from .tools.llm import generate_llm_tool_batch_file, prepare_data
 from .tools.code import execute_code_tool, save_code_tool_results, prepare_tool_use
-from .tools.global_func import check_data_type
+from .tools.global_func import check_data_type, is_single_data
 from lib.directory_manager import dir_manager
 from pathlib import Path
 
@@ -139,6 +139,23 @@ def rollback_workflow_state(workflow_name, snapshot_name=None):
     
     print(f"✅ Rolled back workflow to snapshot: {snapshot_path}")
     return state_file_path
+
+def normalize_step_paths(step_data):
+    """Normalize all paths in step data to relative paths"""
+    if 'data' in step_data:
+        # Normalize input paths
+        if 'in' in step_data['data']:
+            for key, path in step_data['data']['in'].items():
+                if isinstance(path, str) and not is_single_data(path):
+                    step_data['data']['in'][key] = dir_manager.get_relative_path(path)
+        
+        # Normalize output paths
+        if 'out' in step_data['data']:
+            for key, path in step_data['data']['out'].items():
+                if isinstance(path, str) and not is_single_data(path):
+                    step_data['data']['out'][key] = dir_manager.get_relative_path(path)
+    
+    return step_data
 
 
 empty_step_llm = {
