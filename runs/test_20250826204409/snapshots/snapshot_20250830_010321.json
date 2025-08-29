@@ -130,14 +130,6 @@
       "created_at": "2025-08-30T01:01:50.724857",
       "data_type": "string",
       "is_single_data": true
-    },
-    {
-      "name": "selected_data",
-      "file_name": "runs/test_20250826204409/data/s_selected_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -257,21 +249,6 @@
         },
         "out": {
           "segregated_data": "runs/test_20250826204409/data/solved cases_segregated_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "s",
-      "type": "code",
-      "tool_name": "select",
-      "data": {
-        "in": {
-          "segregated_data": "runs/test_20250826204409/data/solved cases_segregated_data_processed.json",
-          "label": "solved"
-        },
-        "out": {
-          "selected_data": "runs/test_20250826204409/data/s_selected_data_processed.json"
         }
       },
       "status": "completed"

@@ -102,42 +102,6 @@
         "list": "data"
       },
       "state": "created"
-    },
-    {
-      "name": "data_classification",
-      "file_name": "runs/test_20250826204409/data/data_classification_extracted.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "completed"
-    },
-    {
-      "name": "segregated_data",
-      "file_name": "runs/test_20250826204409/data/solved cases_segregated_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "solved",
-      "file_name": "solved",
-      "type": {
-        "string": "single"
-      },
-      "state": "single_data",
-      "display_name": "solved",
-      "created_at": "2025-08-30T01:01:50.724857",
-      "data_type": "string",
-      "is_single_data": true
-    },
-    {
-      "name": "selected_data",
-      "file_name": "runs/test_20250826204409/data/s_selected_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -220,58 +184,6 @@
         },
         "out": {
           "expanded_data": "runs/test_20250826204409/data/expanded description_expanded_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "cleaning",
-      "type": "llm",
-      "status": "completed",
-      "tool_name": "clean",
-      "batch": {
-        "in": "runs/test_20250826204409/batch/cleaning_batch.jsonl",
-        "upload_id": "batch_68b22c220628819082eafecc50c66c84",
-        "out": "runs/test_20250826204409/batch/cleaning_results.jsonl"
-      },
-      "data": {
-        "in": {
-          "__dirty_data__": "runs/test_20250826204409/data/unwind_bound_data_processed.json",
-          "__lables__": "runs/test_20250826204409/data/expand criteria_expanded_data_processed.json",
-          "__criteria_verbose__": "runs/test_20250826204409/data/expand criteria_expanded_data_processed.json"
-        },
-        "out": {
-          "data_classification": "runs/test_20250826204409/data/data_classification_extracted.json"
-        }
-      }
-    },
-    {
-      "name": "solved cases",
-      "type": "code",
-      "tool_name": "segregate",
-      "data": {
-        "in": {
-          "classification": "runs/test_20250826204409/data/data_classification_extracted.json",
-          "labels": "criteria",
-          "data": "runs/test_20250826204409/data/unwind_bound_data_processed.json"
-        },
-        "out": {
-          "segregated_data": "runs/test_20250826204409/data/solved cases_segregated_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "s",
-      "type": "code",
-      "tool_name": "select",
-      "data": {
-        "in": {
-          "segregated_data": "runs/test_20250826204409/data/solved cases_segregated_data_processed.json",
-          "label": "solved"
-        },
-        "out": {
-          "selected_data": "runs/test_20250826204409/data/s_selected_data_processed.json"
         }
       },
       "status": "completed"

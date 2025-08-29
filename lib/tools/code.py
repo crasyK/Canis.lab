@@ -30,7 +30,7 @@ available_tools_global = {
         }},
     "select": {
         "data_markers": {
-            "in": {"segregated_data": {"json":"data"}, "lable": {"str":"single"}}, 
+            "in": {"segregated_data": {"json":"data"}, "label": {"str":"single"}}, 
             "out": {"selected_data": {"json":"data"}}
         }},
     "count": {
@@ -118,12 +118,13 @@ def finalize(data):
     })
     return finalized_dataset
 
-def segregate(data, classification, lables):
+def segregate(data, classification, labels):
     return_data = {}
-    for label in lables:
+    for label in labels:
         return_data[label] = {}
+    print(classification)
     for i, item in enumerate(data):
-        label = classification[i]
+        label= json.loads(classification[str(i)])["status"]
         return_data[label][i] = item
     return return_data
 

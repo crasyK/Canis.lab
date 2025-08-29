@@ -1,0 +1,51 @@
+{
+  "name": "teach.math_20250830010825",
+  "status": "running",
+  "nodes": [
+    {
+      "name": "system_prompt",
+      "file_name": "runs/teach.math_20250830010825/data/system_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "user_prompt",
+      "file_name": "runs/teach.math_20250830010825/data/user_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "raw_seed_data",
+      "file_name": "runs/teach.math_20250830010825/data/raw_seed_data.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "uploaded"
+    }
+  ],
+  "state_steps": [
+    {
+      "name": "seed",
+      "type": "llm",
+      "status": "uploaded",
+      "tool_name": "",
+      "batch": {
+        "in": "runs/teach.math_20250830010825/batch/seed_batch.jsonl",
+        "upload_id": "batch_68b2333a294481909b29c1b89fcfc429",
+        "out": "runs/teach.math_20250830010825/batch/seed_results.jsonl"
+      },
+      "data": {
+        "in": {},
+        "out": {
+          "user_prompt": "runs/teach.math_20250830010825/data/user_prompt.json",
+          "system_prompt": "runs/teach.math_20250830010825/data/system_prompt.json",
+          "raw_seed_data": "runs/teach.math_20250830010825/data/raw_seed_data.json"
+        }
+      }
+    }
+  ]
+}
