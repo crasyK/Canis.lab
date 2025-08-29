@@ -1,0 +1,42 @@
+import json
+
+clean_dict = {
+    "step": {
+        "name": "clean",
+        "data_markers": {
+            "in":  {"__criteria_verbose__":{"str":"data"},"__lables__":{"list":"data"},"__dirty_data__":{"str":"data"}},
+            "out": {"data_classification":{"json":"data"}}
+        }
+    },
+    "call": 
+    """{
+        "custom_id": "__index__",
+        "method": "POST",
+        "url": "/v1/responses",
+        "body": {
+            "model": "gpt-5-nano",
+            "input": [
+                {"role": "system", "content": "Decide if following data fullfills the following criteria: __criteria_verbose__. Return a JSON object with the following fields: 'status' (select one oflables according to the criteria)"},
+                {"role": "user", "content": "__dirty_data__"}
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "data_classification",
+                    "strict": true,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "status": {
+                                "type": "string",
+                                "description": "Classification status of the data.",
+                                "enum": __lables__}
+                        },
+                        "required": ["status"],
+                        "additionalProperties": false
+                    }
+                }
+            }
+        }
+        }"""
+    }

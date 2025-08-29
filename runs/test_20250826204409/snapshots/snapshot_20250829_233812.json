@@ -80,28 +80,6 @@
       "created_at": "2025-08-29T23:37:11.758264",
       "data_type": "string",
       "is_single_data": true
-    },
-    {
-      "name": "expanded_data",
-      "file_name": "runs/test_20250826204409/data/expand criteria_expanded_data_processed.json",
-      "type": {
-        "json": "data",
-        "int": "data",
-        "str": "data",
-        "list": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "expanded_data",
-      "file_name": "runs/test_20250826204409/data/expanded description_expanded_data_processed.json",
-      "type": {
-        "json": "data",
-        "int": "data",
-        "str": "data",
-        "list": "data"
-      },
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -154,36 +132,6 @@
         },
         "out": {
           "bound_data": "runs/test_20250826204409/data/unwind_bound_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "expand criteria",
-      "type": "code",
-      "tool_name": "expand",
-      "data": {
-        "in": {
-          "data_to_adapt_to": "runs/test_20250826204409/data/unwind_bound_data_processed.json",
-          "single": "criteria"
-        },
-        "out": {
-          "expanded_data": "runs/test_20250826204409/data/expand criteria_expanded_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "expanded description",
-      "type": "code",
-      "tool_name": "expand",
-      "data": {
-        "in": {
-          "single": "description",
-          "data_to_adapt_to": "runs/test_20250826204409/data/unwind_bound_data_processed.json"
-        },
-        "out": {
-          "expanded_data": "runs/test_20250826204409/data/expanded description_expanded_data_processed.json"
         }
       },
       "status": "completed"
