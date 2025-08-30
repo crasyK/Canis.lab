@@ -33,6 +33,7 @@ def check_batch_job(batch_id):
 def download_batch_results(batch_id, result_file_name):
   batch_job = client.batches.retrieve(batch_id)
   result_file_id = batch_job.output_file_id
+  print(f"🔍 DEBUG - Result file ID: {batch_job}")
   result = client.files.content(result_file_id).content
   with open(result_file_name, 'wb') as file:
       file.write(result)

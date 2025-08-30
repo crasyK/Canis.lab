@@ -2,66 +2,82 @@
   "step": {
     "name": "parse",
     "data_markers": {
-      "in": {"__data__":{"str":"data"}},
-      "out": {"dialogues":{"json":"data"} }
+      "in": {
+        "__data__": {
+          "str": "data"
+        }
+      },
+      "out": {
+        "dialogues": {
+          "json": "data"
+        }
+      }
     }
   },
-"call": {
-  "custom_id": "__index__",
-  "method": "POST",
-  "url": "/v1/responses",
-  "body": {
-    "model": "gpt-5-nano",
-    "input": [
-      {
-        "role": "system",
-        "content": "You are parsing raw dialogues into structured JSON format. The following is a template for the dialogues: \"conversations\": [{\"turns\": [{\"assistant\": \"\", \"user\": \"\"}]}]}"
-      },
-      {
-        "role": "user",
-        "content": "__data__"
-      }
-    ],
-    "text": {
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST",
+    "url": "/v1/responses",
+    "body": {
+      "model": "gpt-5-nano",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are parsing raw dialogues into structured JSON format with intelligent role detection.\n\nCRITICAL GROUPING RULES:\n1. Each \"Dialogue X\" or \"Conversation X\" section = ONE dialogue array\n2. ALL turns within that section go into the SAME dialogue array\n3. DO NOT create separate dialogue arrays for each Q&A pair\n4. Only create a NEW dialogue array when you see a new section header\n\nEXAMPLE - WRONG APPROACH:\nInput: \"Dialogue 1\n- Student: Question 1\n- Teacher: Answer 1\n- Student: Question 2\n- Teacher: Answer 2\"\n\u274c WRONG: [ [Q1,A1], [Q2,A2] ]  // Each Q&A pair as separate dialogue\n\n\u2705 CORRECT: [ [Q1,A1,Q2,A2] ]  // All turns in one dialogue array\n\nPARSING INSTRUCTIONS:\n1. Identify dialogue sections by headers (\"Dialogue X\", \"Conversation X\", etc.)\n2. For each section, collect ALL speaker turns into ONE dialogue array\n3. Use smart role detection based on speaker names/titles:\n\nUSER INDICATORS (assign role \"user\"):\n- Student, Learner, Customer, Client, Caller, User, Human, Person A, Interviewee, Visitor, Guest, Member\n- Anyone asking questions or seeking help\n\nASSISTANT INDICATORS (assign role \"assistant\"):  \n- Teacher, Instructor, Agent, Support, Bot, AI, Assistant, Consultant, Representative, Advisor, Helper, Person B, Interviewer, Host, Staff\n- Anyone providing answers, help, or service\n\nCONTEXT CLUES:\n- Look at content: who's asking vs answering questions?\n- Who's seeking help vs offering help?\n- Maintain consistency within each dialogue section\n\n4. Remove speaker prefixes from content\n5. Maintain exact chronological order of all turns\n\nSTRUCTURE EXAMPLE:\nInput:\n\"Dialogue 1\n- Student: Question 1\n- Teacher: Answer 1  \n- Student: Question 2\n- Teacher: Answer 2\n\nDialogue 2\n- Customer: Issue 1\n- Agent: Response 1\"\n\nOutput:\n{\n  \"dialogue\": [\n    [\n      {\"role\": \"user\", \"content\": \"Question 1\"},\n      {\"role\": \"assistant\", \"content\": \"Answer 1\"},\n      {\"role\": \"user\", \"content\": \"Question 2\"}, \n      {\"role\": \"assistant\", \"content\": \"Answer 2\"}\n    ],\n    [\n      {\"role\": \"user\", \"content\": \"Issue 1\"},\n      {\"role\": \"assistant\", \"content\": \"Response 1\"}\n    ]\n  ]\n}"
+        },
+        {
+          "role": "user",
+          "content": "__data__"
+        }
+      ],
+      "text": {
         "format": {
-            "type": "json_schema",
-            "name": "dialogues",          
-            "schema": {               
-                "type": "object",
-                "properties": {
-                    "dialogue": {
-                        "type": "array",
-                        "description": "An array of dialogue sequences. Each dialogue is an array of turns between participants.",
-                        "items": {
-                            "type": "array",
-                            "description": "A single dialogue: ordered list of message-exchanges.",
-                            "items": {
-                                "type": "object",
-                                "description": "A single turn in the dialogue.",
-                                "properties": {
-                                    "role": {
-                                        "type": "string",
-                                        "description": "Role of the speaker in this turn, e.g., 'assistant' or 'user'.",
-                                        "enum": ["assistant", "user"]
-                                    },
-                                    "content": {
-                                        "type": "string",
-                                        "description": "Text spoken by the participant in this turn.",
-                                        "minLength": 1
-                                    }
-                                },
-                                "required": ["role", "content"],
-                                "additionalProperties": false
-                            },
-                            "minItems": 1
-                        },
-                        "minItems": 1
-                    }
+          "type": "json_schema",
+          "name": "dialogues",
+          "schema": {
+            "type": "object",
+            "properties": {
+              "dialogue": {
+                "type": "array",
+                "description": "An array of dialogue sequences. Each dialogue is an array of turns between participants.",
+                "items": {
+                  "type": "array",
+                  "description": "A single dialogue: ordered list of message-exchanges.",
+                  "items": {
+                    "type": "object",
+                    "description": "A single turn in the dialogue.",
+                    "properties": {
+                      "role": {
+                        "type": "string",
+                        "description": "Role of the speaker in this turn, e.g., 'assistant' or 'user'.",
+                        "enum": [
+                          "assistant",
+                          "user"
+                        ]
+                      },
+                      "content": {
+                        "type": "string",
+                        "description": "Text spoken by the participant in this turn.",
+                        "minLength": 1
+                      }
+                    },
+                    "required": [
+                      "role",
+                      "content"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
                 },
-                "required": ["dialogue"],
-                "additionalProperties": false
+                "minItems": 1
+              }
             },
-            "strict": true
+            "required": [
+              "dialogue"
+            ],
+            "additionalProperties": false
+          },
+          "strict": true
         }
       }
     }
