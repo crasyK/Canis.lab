@@ -94,7 +94,7 @@
     ]
   },
   "constants": {
-    "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {role1} teaching a {mathConcept_key} student and a {role2} with these SPECIFIC requirements: {instructions}",
+    "prompt": "Generate {conversations} different dialogues of {turns} turns, between a {role1} teaching a {mathConcept_key} student with these SPECIFIC requirements: {instructions}",
     "instructions": "The chatbot must engage with the student grade: {mathConcept_key} using the {teachingTechnique} approach and adapt responses based on {studentEngagement}. Dialogues should cover the topic of {mathConcept_value} and include responses that reflect {studentResponse}. The chatbot should ask questions to guide the student's understanding without directly providing answers.",
     "role1": "math chatbot",
     "role2": "K-12 student",

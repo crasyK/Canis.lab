@@ -134,8 +134,12 @@ def generate_llm_tool_batch_file(tool_name, data, file_to_save):
             final_request = json.dumps(final_request).replace("__index__", str(i))
             
             for placeholder, value in mapped_data.items():
-                final_request = final_request.replace(placeholder, json.dumps(value).replace("\n", "\\n"))
-            
+                dumped_value = json.dumps(value)
+                if isinstance(value, str) and dumped_value.startswith('"') and dumped_value.endswith('"'):
+                    dumped_value = dumped_value[1:-1]  # Remove surrounding quotes
+                    print(f"⚠️  WARNING: Removed surrounding quotes from {placeholder}")
+
+                final_request = final_request.replace(placeholder, dumped_value.replace("\n", "\\n"))
             final_request = json.loads(final_request)
 
         batch.append(final_request)

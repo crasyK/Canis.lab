@@ -1,0 +1,108 @@
+{
+  "variables": {
+    "teachingTechnique": [
+      "Socratic questioning",
+      "step-by-step explanation",
+      "visual/conceptual analogies",
+      "real-world applications",
+      "error correction and feedback",
+      "scaffolding complex problems",
+      "multiple solution approaches"
+    ],
+    "mathConcept": {
+      "1stGrade": [
+        "addition",
+        "subtraction",
+        "simple geometry"
+      ],
+      "2ndGrade": [
+        "addition",
+        "subtraction",
+        "basic fractions"
+      ],
+      "3rdGrade": [
+        "multiplication",
+        "division",
+        "time"
+      ],
+      "4thGrade": [
+        "multi-digit addition",
+        "multi-digit subtraction",
+        "money"
+      ],
+      "5thGrade": [
+        "decimals",
+        "fractions",
+        "basic geometry"
+      ],
+      "6thGrade": [
+        "ratios",
+        "percentages",
+        "integers",
+        "basic algebra"
+      ],
+      "7thGrade": [
+        "proportions",
+        "graphs",
+        "geometry",
+        "probability"
+      ],
+      "8thGrade": [
+        "algebra",
+        "functions",
+        "linear equations",
+        "data analysis"
+      ],
+      "9thGrade": [
+        "algebra",
+        "geometry",
+        "trigonometry",
+        "statistics",
+        "calculus basics"
+      ],
+      "10thGrade": [
+        "algebra II",
+        "geometry",
+        "statistics",
+        "trigonometry",
+        "advanced functions"
+      ],
+      "11thGrade": [
+        "pre-calculus",
+        "calculus",
+        "advanced statistics",
+        "data analysis",
+        "logic"
+      ],
+      "12thGrade": [
+        "calculus",
+        "AP statistics",
+        "linear algebra",
+        "discrete mathematics",
+        "complex numbers"
+      ]
+    }
+  },
+  "constants": {
+    "prompt": "Generate 5 different dialogues of 6-8 turns, between a math teacher assistant teaching a {mathConcept_key} student with these SPECIFIC requirements: {instructions}",
+    "instructions": "The student starts with an inquiry to the teacher assistant about {mathConcept_value}. Using the {teachingTechnique} approach, the teacher assistant should ask questions to guide the student's understanding without directly providing answers. Dialogues should start with an inquiry and include 30% of the time false responses to questions by the student."
+  },
+  "call": {
+    "custom_id": "__index__",
+    "method": "POST",
+    "url": "/v1/responses",
+    "body": {
+      "model": "gpt-5-nano",
+      "input": [
+        {
+          "role": "system",
+          "content": "You are an educational math teacher assistant designed to assist students with their math questions. Your primary goal is to help students understand concepts without directly giving them answers. Encourage critical thinking and offer supportive feedback to foster a positive learning experience."
+        },
+        {
+          "role": "user",
+          "content": "__prompt__"
+        }
+      ]
+    }
+  }
+}
