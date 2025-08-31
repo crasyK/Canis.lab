@@ -75,24 +75,6 @@
       "is_single_data": true
     },
     {
-      "name": "Enum ",
-      "file_name": [
-        "\"excellent\"",
-        "\"good\"",
-        "fair",
-        "poor",
-        "reject"
-      ],
-      "type": {
-        "list": "single"
-      },
-      "state": "single_data",
-      "display_name": "['\"exce...",
-      "created_at": "2025-08-30T20:14:06.113119",
-      "data_type": "list",
-      "is_single_data": true
-    },
-    {
       "name": "ENUM2",
       "file_name": [
         "excellent",
@@ -109,28 +91,6 @@
       "created_at": "2025-08-30T20:15:08.572204",
       "data_type": "list",
       "is_single_data": true
-    },
-    {
-      "name": "expanded_data",
-      "file_name": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json",
-      "type": {
-        "json": "data",
-        "int": "data",
-        "str": "data",
-        "list": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "expanded_data",
-      "file_name": "runs/concteach.math_20250830162221/data/Expand List_expanded_data_processed.json",
-      "type": {
-        "json": "data",
-        "int": "data",
-        "str": "data",
-        "list": "data"
-      },
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -159,25 +119,6 @@
       "status": "completed",
       "tool_name": "parse_conversation",
       "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/Parsing_batch.jsonl",
-        "upload_id": "batch_68b31e8921f0819098fa068784dace3e",
-        "out": "runs/concteach.math_20250830162221/batch/Parsing_results.jsonl"
-      },
-      "data": {
-        "in": {
-          "__data__": "runs/concteach.math_20250830162221/data/raw_seed_data_extracted.json"
-        },
-        "out": {
-          "dialogues": "runs/concteach.math_20250830162221/data/dialogues_extracted.json"
-        }
-      }
-    },
-    {
-      "name": "test_PTest",
-      "type": "llm",
-      "status": "completed",
-      "tool_name": "parse_conversation",
-      "batch": {
         "in": "runs/concteach.math_20250830162221/batch/test_PTest_batch.jsonl",
         "upload_id": "batch_68b32a73f718819086d7993c5b94db82",
         "out": "runs/concteach.math_20250830162221/batch/test_PTest_results.jsonl"
@@ -202,36 +143,6 @@
         },
         "out": {
           "bound_data": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "Expanded Vcrit",
-      "type": "code",
-      "tool_name": "expand",
-      "data": {
-        "in": {
-          "single": "verbose criteria",
-          "data_to_adapt_to": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json"
-        },
-        "out": {
-          "expanded_data": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "Expand List",
-      "type": "code",
-      "tool_name": "expand",
-      "data": {
-        "in": {
-          "single": "ENUM2",
-          "data_to_adapt_to": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json"
-        },
-        "out": {
-          "expanded_data": "runs/concteach.math_20250830162221/data/Expand List_expanded_data_processed.json"
         }
       },
       "status": "completed"

@@ -7,6 +7,7 @@ from .tools.seed import generate_seed_batch_file
 from .tools.llm import generate_llm_tool_batch_file, prepare_data
 from .tools.code import execute_code_tool, save_code_tool_results, prepare_tool_use
 from .tools.global_func import check_data_type, is_single_data
+from .tools.chip import prepare_chip_use, start_chip_tool, finish_chip_tool, save_chip_results
 from lib.directory_manager import dir_manager
 from pathlib import Path
 
@@ -276,7 +277,7 @@ def get_marker_data_from_dict(state_file, marker_reference_dict):
             print(f"🔍 DEBUG get_marker_data - FAILED to resolve marker '{value}': {e}")
             data[key] = value
             addresses[key] = value
-    return data, addresses
+    return addresses
 def start_seed_step(state_file, seed_file):
     """Start seed step using DirectoryManager"""
     state = dir_manager.load_json(state_file)
@@ -330,8 +331,8 @@ def complete_running_step(state_file):
     """Complete running step using DirectoryManager"""
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    
-    if state["status"] != "running":
+
+    if state["status"] != "running" and state["status"] != "running_chip":
         raise ValueError("State is not running")
     
     last_step = state["state_steps"][-1]
@@ -352,18 +353,25 @@ def complete_running_step(state_file):
         download_batch_results(batch_id, last_step["batch"]["out"])
         
         # Use DirectoryManager for data output path
-        data_output_path = dir_manager.get_data_file_path(workflow_name, output_marker["name"], "extracted")
-        last_step["data"]["out"][output_marker["name"]] = str(data_output_path)
+        if state["status"] == "running_chip":
+            cache_batch_data = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
+
+            final_data = finish_chip_tool(chip_name=last_step["tool_name"],data=last_step["data"]["in"], batch_data=cache_batch_data)
+
+            save_chip_results(last_step["tool_name"], final_data, last_step["data"]["out"])
+            # update output markers
+            for output_marker in last_step["data"]["out"]:
+                output_marker["state"] = "completed"
+                (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
+        else:
+            # Convert batch output to JSON data
+            convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
         
+            # Update the state file with the new data
+            output_marker["state"] = "completed"  # Fix: Update marker to point to extracted file
+            (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
+
         state["status"] = "completed"
-        
-        # Convert batch output to JSON data
-        convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
-        
-        # Update the state file with the new data
-        output_marker["state"] = "completed"
-        output_marker["file_name"] = str(data_output_path)  # Fix: Update marker to point to extracted file
-        (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
         
         # Save state using DirectoryManager
         dir_manager.save_json(state_file, state)
@@ -399,12 +407,11 @@ def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict):
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
     
-    data, addresses = get_marker_data_from_dict(state_file, marker_datafile_dict)
+    addresses = get_marker_data_from_dict(state_file, marker_datafile_dict)
     
     # 🔍 DEBUG: Print what data was resolved
     print(f"🔍 DEBUG - Resolved data:")
     print(f"   addresses: {addresses}")
-    print(f"   data keys: {list(data.keys()) if data else 'None'}")
     state["status"] = "running"
     
     new_step = empty_step_llm.copy()
@@ -459,8 +466,8 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict):
     
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    
-    data, addresses = get_marker_data_from_dict(state_file, reference_dict)
+
+    addresses = get_marker_data_from_dict(state_file, reference_dict)
     state["status"] = "running"
     
     new_step = empty_step_code.copy()
@@ -477,8 +484,8 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict):
     
     if tool_name == "finalize":
         # Use DirectoryManager for dataset versioning
-        dataset_result = execute_code_tool(tool_name, data)
-        
+        dataset_result = execute_code_tool(tool_name, addresses)
+
         # Create a new dataset version
         version_name = f"finalized_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
@@ -500,7 +507,7 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict):
         data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{output_markers['name']}", "processed")
         
         # Execute and save results
-        result = execute_code_tool(tool_name, data)
+        result = execute_code_tool(tool_name, addresses)
         save_code_tool_results(tool_name, result, str(data_output_path))
         
         new_step["data"]["out"] = {output_markers["name"]: str(data_output_path)}
@@ -508,6 +515,59 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict):
         new_step["status"] = "completed"
         state["status"] = "completed"
     
+    state["state_steps"].append(new_step)
+    
+    # Save state using DirectoryManager
+    dir_manager.save_json(state_file, state)
+    return state_file
+
+def use_chip(state_file, chip_name, custom_name, reference_dict):
+    """Use chip with DirectoryManager and progress tracking"""
+
+    # Create snapshot before operation
+    try:
+        create_workflow_snapshot(state_file)
+    except Exception as e:
+        print(f"⚠️  Failed to create snapshot: {e}")
+    
+    state = dir_manager.load_json(state_file)
+    workflow_name = state["name"]
+    
+    addresses = get_marker_data_from_dict(state_file, reference_dict)
+    state["status"] = "running_chip"
+    
+    new_step = empty_step_code.copy()
+    new_step["name"] = custom_name
+    new_step["status"] = "created"
+    new_step["tool_name"] = chip_name
+
+    batch_file_path = dir_manager.get_batch_file_path(workflow_name, new_step["name"])
+    new_step["batch"]["in"] = str(batch_file_path)
+    new_step["data"]["in"] = addresses
+
+    # Start the chip tool
+    out = start_chip_tool(chip_name, addresses, batch_file_path)
+
+    # Batch management
+    new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
+    batch_output_path = dir_manager.get_batch_dir(workflow_name) / f"{new_step['name']}_{output_markers['name']}.jsonl"
+    new_step["batch"]["out"] = str(batch_output_path)
+
+    # Here could be multiple output markers
+    output_markers = {}
+    # For loop to cycle and create all the possible markers
+    for key, value in out.items():
+        output_markers.update({key: value})
+
+    # Use DirectoryManager for data output path
+    for key, value in output_markers.items():
+        data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{key}", "extracted")
+        new_step["data"]["out"] = {key: str(data_output_path)}
+
+        # Create each marker
+        state["nodes"].append(create_markers(key, new_step["data"]["out"][key], value, "uploaded"))
+
+    new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
     
     # Save state using DirectoryManager

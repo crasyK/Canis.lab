@@ -65,6 +65,9 @@ def convert_batch_out_to_json_data(batch_file, output_file):
     output_data = {}
     for b in batch:
         output_data[b["custom_id"]] = b["response"]["body"]["output"][1]["content"][0]["text"]
-
-    with open(output_file, 'w') as f:
-        json.dump(output_data, f)
+    
+    if output_file == None:
+       return output_data
+    else:
+        with open(output_file, 'w') as f:
+            json.dump(output_data, f)
