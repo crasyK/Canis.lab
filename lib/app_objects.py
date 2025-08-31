@@ -70,9 +70,16 @@ class step(object):
         """Get styling for parent node based on type and status"""
         # Check if this is a test step
         is_test_step = self.step_name.startswith('test_')
+
+        is_chip_step = self.step_type == 'chip'
         
         # Border and background styling based on test status
-        if is_test_step and self.status == 'completed':
+        if is_chip_step:
+            border_color = '#9C27B0'  # Purple for chip steps
+            backgroundColor = '#F3E5F5' if self.status == 'completed' else '#E1BEE7'
+            border_style = 'solid'
+            border_width = '3px'
+        elif is_test_step and self.status == 'completed':
             border_color = '#FF8C00'  # Orange for test steps
             backgroundColor = '#FFF8DC'  # Light cream background
             border_style = 'dashed'
@@ -95,13 +102,13 @@ class step(object):
             border_width = '2px'
         
         return {
-            'color': 'black',  # Text color is always black now
+            'color': 'black',
             'backgroundColor': backgroundColor,
             'border': f'{border_width} {border_style} {border_color}',
             'borderRadius': '8px',
             'width': '200px',
             'height': f'{self.markers_count_column*50+self.markers_count_column*10+40+10}px',
-            'boxShadow': '2px 2px 4px rgba(0,0,0,0.1)' if is_test_step else 'none'
+            'boxShadow': '2px 2px 4px rgba(0,0,0,0.1)' if is_chip_step else 'none'
         }
 
     def is_single_data(self, file_path):

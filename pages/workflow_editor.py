@@ -6,10 +6,12 @@ from streamlit_flow.layouts import LayeredLayout
 from lib.app_objects import step, create_complete_flow_from_state
 from lib.state_managment import (
     create_state, start_seed_step, complete_running_step,
-    use_llm_tool, use_code_tool, get_markers, get_uploaded_markers
+    use_llm_tool, use_code_tool, get_markers, get_uploaded_markers,
+    use_chip
 )
 from lib.tools.llm import get_available_llm_tools, prepare_data
 from lib.tools.code import get_available_code_tools, prepare_tool_use
+from lib.tools.chip import get_available_chips, prepare_chip_use
 from lib.tools.global_func import get_type, check_data_type, has_connection
 from lib.directory_manager import dir_manager
 import json
@@ -26,6 +28,7 @@ class SmartStepBuilder:
         self.current_workflow = current_workflow
         self.available_llm_tools = get_available_llm_tools()
         self.available_code_tools = get_available_code_tools()
+        self.available_chips = get_available_chips()  # Add this lin
     
     def render(self):
         """Main step builder interface"""
@@ -34,13 +37,18 @@ class SmartStepBuilder:
         col1, col2 = st.columns([1, 2])
         
         with col1:
-            tool_type = st.radio("Type:", ["LLM", "Code"], horizontal=True)
-            available_tools = (self.available_llm_tools if tool_type == "LLM" 
-                             else self.available_code_tools)
+            tool_type = st.radio("Type:", ["LLM", "Code", "Chip"], horizontal=True)
+            
+            if tool_type == "Chip":
+                available_tools = list(self.available_chips.keys())
+            elif tool_type == "LLM":
+                available_tools = self.available_llm_tools
+            else:
+                available_tools = self.available_code_tools
             
             selected_tool = st.selectbox(
                 "Tool:", 
-                options=["Select tool..."] + list(available_tools),
+                options=["Select tool..."] + available_tools,
                 key="tool_selector"
             )
         
@@ -51,12 +59,15 @@ class SmartStepBuilder:
                 key="step_name_input"
             )
             
-            # Test mode toggle
-            test_mode = st.checkbox(
-                "🧪 Test Mode (5 entries only)",
-                key="test_mode_toggle",
-                help="Run on sample data first"
-            )
+            # Test mode toggle (only for LLM and Chip)
+            if tool_type in ["LLM", "Chip"]:
+                test_mode = st.checkbox(
+                    "🧪 Test Mode (5 entries only)",
+                    key="test_mode_toggle",
+                    help="Run on sample data first"
+                )
+            else:
+                test_mode = False
         
         # Smart connections (only if tool selected)
         if selected_tool != "Select tool...":
@@ -77,11 +88,13 @@ class SmartStepBuilder:
     
     def render_smart_connections(self, tool_name, tool_type):
         """Render intelligent connection dropdowns"""
-        # Get tool requirements
+        # Get tool requirements based on type
         if tool_type == "LLM":
             tool_spec = prepare_data(tool_name)
-        else:
+        elif tool_type == "Code":
             tool_spec = prepare_tool_use(tool_name)
+        else:  # Chip
+            tool_spec = prepare_chip_use(tool_name)
         
         input_requirements = tool_spec.get('in', {})
         
@@ -89,7 +102,7 @@ class SmartStepBuilder:
             st.info("ℹ️ This tool doesn't require input connections")
             return {}
         
-        st.write("**📥 Input Connections:**")
+        st.write("**🔗 Input Connections:**")
         connections = {}
         
         for param_name, param_spec in input_requirements.items():
@@ -131,12 +144,11 @@ class SmartStepBuilder:
         return None
     
     def get_viable_sources(self, param_spec):
-        """Get list of viable data sources for a parameter"""
-        # Get current state data
+        """Get list of viable data sources for a parameter with type checking"""
         state_file_path = dir_manager.get_state_file_path(self.current_workflow)
         if not state_file_path.exists():
             return []
-            
+        
         current_state_data = dir_manager.load_json(state_file_path)
         viable_sources = []
         
@@ -144,23 +156,49 @@ class SmartStepBuilder:
         for step_data in current_state_data.get('state_steps', []):
             if step_data.get('status') == 'completed':
                 for param_name, file_path in step_data.get('data', {}).get('out', {}).items():
-                    # TODO: Add type checking logic here
-                    viable_sources.append({
-                        'step_name': step_data.get('name', 'Unknown'),
-                        'param_name': param_name,
-                        'source_ref': f"{step_data.get('name', 'Unknown')}.{param_name}"
-                    })
+                    # Get the actual data type from the node
+                    node_info = self.find_node_by_file_path(file_path, current_state_data.get('nodes', []))
+                    if node_info and self.is_type_compatible(node_info.get('type', {}), param_spec):
+                        viable_sources.append({
+                            'step_name': step_data.get('name', 'Unknown'),
+                            'param_name': param_name,
+                            'source_ref': f"{step_data.get('name', 'Unknown')}.{param_name}",
+                            'data_type': node_info.get('type', {}),
+                            'file_path': file_path
+                        })
         
         # Check single data blocks
         for node in current_state_data.get('nodes', []):
-            if node.get('state') == 'single_data':
+            if (node.get('state') == 'single_data' and 
+                self.is_type_compatible(node.get('type', {}), param_spec)):
                 viable_sources.append({
                     'step_name': 'Single Data',
                     'param_name': node.get('name', 'Unknown'),
-                    'source_ref': node.get('name', 'Unknown')
+                    'source_ref': node.get('name', 'Unknown'),
+                    'data_type': node.get('type', {}),
+                    'is_single': True
                 })
         
         return viable_sources
+
+    def find_node_by_file_path(self, file_path, nodes):
+        """Find node by its file path"""
+        for node in nodes:
+            if node.get('file_name') == file_path:
+                return node
+        return None
+
+    def is_type_compatible(self, source_type, target_spec):
+        """Check if source type is compatible with target specification"""
+        try:
+            from lib.tools.global_func import has_connection
+            return has_connection(source_type, target_spec)
+        except ImportError:
+            # Fallback to basic type checking
+            if isinstance(source_type, dict) and isinstance(target_spec, dict):
+                # Check if there's any overlap in type keys
+                return bool(set(source_type.keys()) & set(target_spec.keys()))
+            return True  # Default to compatible if can't check
     
     def param_accepts_single_data(self, param_spec):
         """Check if parameter can accept single data input"""
@@ -168,25 +206,336 @@ class SmartStepBuilder:
         return True
     
     def create_inline_single_data(self, param_name, param_spec):
-        """Create single data inline"""
-        # This would open a quick popup for single data creation
-        st.session_state[f'create_single_for_{param_name}'] = True
+        """Create single data inline with proper modal dialog"""
+        # Set session state to show inline single data creation
+        st.session_state[f'show_inline_single_{param_name}'] = True
+        st.session_state[f'inline_param_spec_{param_name}'] = param_spec
         return None
-    
-    def add_step_with_connections(self, tool_type, tool_name, step_name, connections, test_mode=False):
-        """Add step with pre-validated connections"""
-        try:
-            if test_mode:
-                add_test_step(tool_type.lower(), step_name, tool_name)
-                set_message('success', f"🧪 Test step '{step_name}' added!")
-            else:
-                add_pending_step(tool_type.lower(), step_name, tool_name)
-                set_message('success', f"✅ Step '{step_name}' added!")
+
+    def render_inline_single_data_dialogs(self):
+        """Render any active inline single data creation dialogs"""
+        # Check for active inline single data dialogs
+        for key in list(st.session_state.keys()):
+            if key.startswith('show_inline_single_') and st.session_state[key]:
+                param_name = key.replace('show_inline_single_', '')
+                param_spec = st.session_state.get(f'inline_param_spec_{param_name}', {})
+                
+                with st.expander(f"🔧 Create Single Data for {param_name}", expanded=True):
+                    self.render_single_data_form(param_name, param_spec)
+
+    def render_single_data_form(self, param_name, param_spec):
+        """Render single data creation form"""
+        with st.form(f"inline_single_{param_name}"):
+            # Determine expected data type from param_spec
+            expected_types = list(param_spec.keys()) if isinstance(param_spec, dict) else ['string']
             
-            # TODO: Apply connections after step creation
+            data_name = st.text_input(
+                "Data Name:",
+                value=f"{param_name}_data",
+                key=f"inline_name_{param_name}"
+            )
+            
+            # Create appropriate input based on expected type
+            data_value = self.create_typed_input(expected_types[0], param_name)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.form_submit_button("✅ Create"):
+                    if data_name and data_value is not None:
+                        if create_single_data_block(data_name, expected_types[0], data_value):
+                            # Clear the dialog
+                            st.session_state[f'show_inline_single_{param_name}'] = False
+                            if f'inline_param_spec_{param_name}' in st.session_state:
+                                del st.session_state[f'inline_param_spec_{param_name}']
+                            st.rerun()
+            
+            with col2:
+                if st.form_submit_button("❌ Cancel"):
+                    st.session_state[f'show_inline_single_{param_name}'] = False
+                    if f'inline_param_spec_{param_name}' in st.session_state:
+                        del st.session_state[f'inline_param_spec_{param_name}']
+                    st.rerun()
+
+    def create_typed_input(self, data_type, param_name):
+        """Create appropriate input field based on data type"""
+        if data_type == "string" or data_type == "str":
+            return st.text_area(
+                "String Value:",
+                placeholder="Enter your text here...\nMultiple lines supported",
+                key=f"inline_string_{param_name}",
+                height=100
+            )
+        
+        elif data_type == "integer" or data_type == "int":
+            return st.number_input(
+                "Integer Value:",
+                value=0,
+                step=1,
+                key=f"inline_int_{param_name}"
+            )
+        
+        elif data_type == "list":
+            list_input = st.text_input(
+                "List Items:",
+                placeholder="item1, item2, item3",
+                key=f"inline_list_{param_name}",
+                help="Enter items separated by commas"
+            )
+            if list_input:
+                items = [item.strip() for item in list_input.split(',') if item.strip()]
+                st.caption(f"📋 Preview: {items} ({len(items)} items)")
+                return items
+            return []
+        
+        elif data_type == "json":
+            json_input = st.text_area(
+                "JSON Value:",
+                placeholder='{\n  "key": "value",\n  "number": 123\n}',
+                key=f"inline_json_{param_name}",
+                height=120
+            )
+            if json_input:
+                try:
+                    import json
+                    parsed = json.loads(json_input)
+                    st.success("✅ Valid JSON")
+                    return parsed
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ Invalid JSON: {e}")
+                    return None
+            return None
+        
+        else:
+            # Default to string input
+            return st.text_input(
+                f"{data_type.title()} Value:",
+                key=f"inline_default_{param_name}"
+            )
+        
+    def normalize_tool_requirements(self, tool_type, tool_name):
+        """Normalize tool requirements to consistent dict format"""
+        try:
+            if tool_type == 'llm':
+                tool_spec = prepare_data(tool_name)
+            elif tool_type == 'code':
+                tool_spec = prepare_tool_use(tool_name)
+            else:  # chip
+                tool_spec = prepare_chip_use(tool_name)
+            
+            input_req = tool_spec.get('in', {})
+            output_req = tool_spec.get('out', {})
+            
+            # Normalize inputs
+            if isinstance(input_req, list):
+                input_req = {f"input_{i+1}": req for i, req in enumerate(input_req)} if input_req else {}
+            
+            # Normalize outputs
+            if isinstance(output_req, list):
+                if output_req:
+                    output_req = {f"output_{i+1}": req for i, req in enumerate(output_req)}
+                else:
+                    output_req = {"output": {"json": "data"}}
+            elif not output_req:
+                output_req = {"output": {"json": "data"}}
+            
+            return input_req, output_req
             
         except Exception as e:
-            set_message('error', f"Error adding step: {e}")
+            print(f"❌ Error normalizing requirements for {tool_type}:{tool_name}: {e}")
+            # Return safe defaults
+            return {}, {"output": {"json": "data"}}
+
+        
+    def create_step_instance_for_pending(self, pending_step):
+        """Create step instance and add to visual flow"""
+        try:
+            from lib.app_objects import step
+            
+            # Get current state data for nodes info
+            state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+            if state_file_path.exists():
+                current_state_data = dir_manager.load_json(state_file_path)
+                current_markers = current_state_data.get('nodes', [])
+            else:
+                current_markers = []
+            
+            # Get normalized requirements
+            input_requirements, output_requirements = self.normalize_tool_requirements(
+                pending_step['type'], 
+                pending_step['tool']
+            )
+            
+            # Create markers_map based on requirements
+            markers_map = {
+                'in': len(input_requirements) if input_requirements else 0,
+                'out': len(output_requirements) if output_requirements else 1
+            }
+            
+            # Create step data structure with proper dict format
+            step_data = {
+                'in': input_requirements,
+                'out': output_requirements
+            }
+            
+            # Calculate position
+            position_x = 100 + (pending_step['step_number'] - 1) * 300
+            position_y = 100
+            
+            # Create step instance
+            step_instance = step(
+                markers_map=markers_map,
+                step_type=pending_step['type'],
+                status='pending',
+                step_data=step_data,
+                step_name=pending_step['name'],
+                nodes_info=current_markers
+            )
+            
+            # Override step number to match pending step
+            step_instance.step_number = pending_step['step_number']
+            step.instances[pending_step['step_number']] = step_instance
+            
+            # Store step instance in pending step for later use
+            pending_step['step_instance'] = step_instance
+            pending_step['position'] = (position_x, position_y)
+            
+            # Update visual flow
+            update_flow_with_pending_steps()
+            
+            print(f"✅ Created step instance for {pending_step['name']} with {len(input_requirements)} inputs and {len(output_requirements)} outputs")
+            
+        except Exception as e:
+            print(f"❌ Error creating step instance: {e}")
+            import traceback
+            traceback.print_exc() 
+
+    
+    def add_step_with_connections(self, tool_type, tool_name, step_name, connections, test_mode):
+        """Add step to pending with proper type handling"""
+        if not hasattr(st.session_state, 'pending_steps'):
+            st.session_state.pending_steps = []
+        
+        # Get requirements based on tool type
+        if tool_type == "LLM":
+            requirements = prepare_data(tool_name).get('in', {})
+        elif tool_type == "Code":
+            requirements = prepare_tool_use(tool_name).get('in', {})
+        else:  # Chip
+            requirements = prepare_chip_use(tool_name).get('in', {})
+        
+        # Calculate proper step number based on existing workflow state
+        state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+        if state_file_path.exists():
+            current_state_data = dir_manager.load_json(state_file_path)
+            existing_steps_count = len(current_state_data.get('state_steps', []))
+        else:
+            existing_steps_count = 0
+        
+        # Step number should be: existing completed steps + current pending steps + 1
+        step_number = existing_steps_count + len(st.session_state.pending_steps) + 1
+        
+        print(f"DEBUG STEP CALCULATION:")
+        print(f"  - Existing completed steps: {existing_steps_count}")
+        print(f"  - Current pending steps: {len(st.session_state.pending_steps)}")
+        print(f"  - Calculated step_number: {step_number}")
+        
+        # Create pending step
+        pending_step = {
+            'name': step_name,
+            'type': tool_type.lower(),  # "llm", "code", or "chip"
+            'tool': tool_name,
+            'test_mode': test_mode,
+            'connections': connections,
+            'input_requirements': requirements,
+            'needs_connections': [req for req in requirements.keys() if req not in connections],
+            'step_number': step_number  # Use calculated step number
+        }
+        
+        st.session_state.pending_steps.append(pending_step)
+        
+        # Clear all edges when adding a new pending step to avoid stale connections
+        if hasattr(st.session_state, 'flow_state') and st.session_state.flow_state:
+            print(f"🧹 Clearing {len(st.session_state.flow_state.edges)} existing edges")
+            st.session_state.flow_state.edges = []
+        
+        # Create step instance and add to visual flow
+        self.create_step_instance_for_pending(pending_step)
+
+        self.create_visual_edges_from_connections(pending_step, connections)
+        
+        set_message('success', f"✅ Added {tool_type} step: {step_name}")
+        
+        print(f"DEBUG: Added pending step '{step_name}' with step_number {step_number}")
+
+    def create_visual_edges_from_connections(self, pending_step, connections):
+        """Convert step builder connections to visual flow edges"""
+        if not connections or not hasattr(st.session_state, 'flow_state'):
+            return
+            
+        from streamlit_flow.elements import StreamlitFlowEdge
+        
+        # Get current state data for source lookup
+        state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+        if state_file_path.exists():
+            current_state_data = dir_manager.load_json(state_file_path)
+        else:
+            return
+        
+        new_edges = []
+        step_number = pending_step['step_number']
+        input_requirements = pending_step.get('input_requirements', {})
+        param_names = list(input_requirements.keys())
+        
+        print(f"🔗 Creating visual edges for step {step_number} with connections: {connections}")
+        
+        for param_name, source_value in connections.items():
+            if not source_value:
+                continue
+                
+            # Find the input index for this parameter
+            try:
+                param_index = param_names.index(param_name) + 1  # 1-based for visual flow
+            except ValueError:
+                continue
+                
+            # Create target ID
+            target_id = f"{step_number}-in-{param_index}"
+            
+            # FIX: Clean up source_value - remove "Single Data." prefix
+            if source_value.startswith("Single Data."):
+                clean_source_value = source_value.replace("Single Data.", "")
+            else:
+                clean_source_value = source_value
+            
+            # Create proper source ID
+            source_id = f"single-{clean_source_value}"
+            
+            # Create edge
+            edge_id = f"builder-edge-{clean_source_value}-to-{target_id}"
+            edge = StreamlitFlowEdge(
+                edge_id,
+                source_id,
+                target_id,
+                style={'stroke': '#4CAF50', 'strokeWidth': 2}
+            )
+            
+            new_edges.append(edge)
+            print(f"✅ Created edge: {source_id} -> {target_id}")
+        
+        # Add edges to flow state
+        if new_edges:
+            if not st.session_state.flow_state.edges:
+                st.session_state.flow_state.edges = []
+            st.session_state.flow_state.edges.extend(new_edges)
+            print(f"🔗 Added {len(new_edges)} visual edges to flow")
+            
+            # Force flow refresh
+            st.session_state.flow_state = st.session_state.flow_state
+
+
+
+
+
 
 class DataPreview:
     """Data preview panel for clicked nodes"""
@@ -879,18 +1228,55 @@ def update_flow_with_pending_steps():
     
     # Ensure flow_state exists
     if 'flow_state' not in st.session_state or not st.session_state.flow_state:
-        print("⚠️ No flow_state found, creating empty one")
+        print("📭 No flow_state found, creating empty one")
         from streamlit_flow import StreamlitFlowState
         st.session_state.flow_state = StreamlitFlowState([], [])
 
     if not st.session_state.get('pending_steps'):
-        print("ℹ️ No pending steps to add")
+        print("📭 No pending steps to add")
         return
 
     try:
         # Get all existing nodes (both from loaded workflow and previously added pending steps)
         existing_nodes = list(st.session_state.flow_state.nodes)
         existing_edges = list(st.session_state.flow_state.edges)
+        
+        # CLEAR STALE EDGES - Remove edges that point to non-existent pending steps
+        valid_edges = []
+        pending_step_numbers = {ps['step_number'] for ps in st.session_state.pending_steps}
+        
+        # Get completed step numbers
+        if st.session_state.current_workflow:
+            state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+            current_state_data = dir_manager.load_json(state_file_path)
+            completed_step_numbers = set(range(1, len(current_state_data.get('state_steps', [])) + 1))
+        else:
+            completed_step_numbers = set()
+        
+        all_valid_step_numbers = completed_step_numbers | pending_step_numbers
+        
+        for edge in existing_edges:
+            # Check if edge connects to valid steps
+            is_valid = True
+            
+            # Check source
+            if '-' in edge.source and not edge.source.startswith('single-'):
+                source_step = int(edge.source.split('-')[0])
+                if source_step not in all_valid_step_numbers:
+                    is_valid = False
+                    print(f"🗑️ Removing stale edge (invalid source): {edge.id}")
+            
+            # Check target
+            if '-' in edge.target and not edge.target.startswith('single-'):
+                target_step = int(edge.target.split('-')[0])
+                if target_step not in all_valid_step_numbers:
+                    is_valid = False
+                    print(f"🗑️ Removing stale edge (invalid target): {edge.id}")
+            
+            if is_valid:
+                valid_edges.append(edge)
+        
+        print(f"🧹 Cleaned edges: {len(existing_edges)} -> {len(valid_edges)}")
         
         # Get existing node IDs to avoid duplicates
         existing_node_ids = {node.id for node in existing_nodes}
@@ -918,13 +1304,16 @@ def update_flow_with_pending_steps():
                 print(f"❌ Error processing step {pending_step['name']}: {e}")
                 continue
 
-        # Update the flow state with all nodes (existing + new)
+        # Update the flow state with all nodes (existing + new) and cleaned edges
         if new_nodes:
             all_nodes = existing_nodes + new_nodes
             st.session_state.flow_state.nodes = all_nodes
+            st.session_state.flow_state.edges = valid_edges  # Use cleaned edges
             print(f"✅ Added {len(new_nodes)} new nodes. Total nodes: {len(all_nodes)}")
         else:
-            print("ℹ️ No new nodes to add")
+            # Still update edges even if no new nodes
+            st.session_state.flow_state.edges = valid_edges
+            print("📭 No new nodes to add, but updated edges")
 
         print(f"🎯 Flow now has {len(st.session_state.flow_state.nodes)} total nodes")
 
@@ -932,6 +1321,7 @@ def update_flow_with_pending_steps():
         print(f"❌ Error updating flow with pending steps: {e}")
         import traceback
         traceback.print_exc()
+
 
 def execute_pending_steps():
     """Execute pending steps with proper directory handling and connections"""
@@ -977,7 +1367,25 @@ def execute_pending_steps():
         # Execute each pending step
         for pending_step in st.session_state.pending_steps:
             step_connections = connections.get(pending_step['name'], {})
-            print(f"DEBUG: Executing {pending_step['name']} with connections: {step_connections}")
+            test_mode = pending_step.get('test_mode', False)
+            
+            print(f"🚀 Executing {pending_step['name']} (test_mode: {test_mode}) with connections: {step_connections}")
+            
+            # Clean connection values (remove "Single Data." prefix and fix parameter names)
+            cleaned_connections = {}
+            for param_name, source_value in step_connections.items():
+                # Clean parameter name (replace spaces with underscores)
+                clean_param_name = param_name.replace(' ', '_')
+                
+                # Clean source value (remove "Single Data." prefix)
+                if source_value.startswith("Single Data."):
+                    clean_source_value = source_value.replace("Single Data.", "")
+                else:
+                    clean_source_value = source_value
+                
+                cleaned_connections[clean_param_name] = clean_source_value
+            
+            print(f"🧹 Cleaned connections: {step_connections} -> {cleaned_connections}")
             
             try:
                 if pending_step['type'] == 'llm':
@@ -985,15 +1393,27 @@ def execute_pending_steps():
                         str(state_file_path),
                         pending_step['name'],
                         pending_step['tool'],
-                        step_connections
+                        cleaned_connections,  # Use cleaned connections
+                        test_mode=test_mode
                     )
-                else: # code
+                elif pending_step['type'] == 'code':
                     use_code_tool(
                         str(state_file_path),
                         pending_step['name'],
                         pending_step['tool'],
-                        step_connections
+                        cleaned_connections,  # Use cleaned connections
+                        test_mode=test_mode
                     )
+                elif pending_step['type'] == 'chip':
+                    use_chip(
+                        str(state_file_path),  # Use workflow name instead of file path
+                        pending_step['name'],
+                        pending_step['tool'],
+                        cleaned_connections,  # Use cleaned connections
+                        test_mode=test_mode                     # test_mode parameter
+                    )
+                else:
+                    raise ValueError(f"Unknown step type: {pending_step['type']}")
 
                 print(f"✅ Executed: {pending_step['name']}")
 
@@ -1021,7 +1441,6 @@ def execute_pending_steps():
         import traceback
         traceback.print_exc()
         return False
-
 
 def get_edge_connections(flow_state):
     """Extract edge connections from the flow state with proper mapping to tool requirements"""
@@ -1051,6 +1470,12 @@ def get_edge_connections(flow_state):
                 input_index = parts[2] # '1', '2', etc.
                 
                 print(f"DEBUG: Parsing target {target_id}: step={step_number}, type={node_type}, index={input_index}")
+
+                # Add this debug block to see what's actually in pending_steps
+                print(f"DEBUG: Looking for step_number {step_number}, available pending steps:")
+                for ps in st.session_state.get('pending_steps', []):
+                    print(f"  - {ps['name']}: step_number={ps.get('step_number')}")
+
                 
                 # Find the corresponding pending step
                 for pending_step in st.session_state.get('pending_steps', []):
@@ -1291,6 +1716,10 @@ with st.sidebar:
             st.session_state.show_single_data_dialog = True
             st.rerun()
         
+        if st.button("🌱 Start Seed Step", key="sidebar_seed_btn", use_container_width=True):
+            st.session_state.show_seed_dialog = True
+            st.rerun()
+        
         # Show pending steps count and allow execution
         if st.session_state.pending_steps:
             pending_count = len(st.session_state.pending_steps)
@@ -1363,14 +1792,17 @@ if st.session_state.current_workflow and st.session_state.flow_state:
     with col1:
         st.metric("Workflow", current_state_data['name'])
     with col2:
-        if current_state_data['status'] == 'running':
-            st.metric("Status", "🟡 Running")
-        elif current_state_data['status'] == 'completed':
-            st.metric("Status", "🟢 Complete")
-        elif current_state_data['status'] == 'failed':
-            st.metric("Status", "🔴 Failed")
+        status = current_state_data['status']
+        if status == 'running':
+            st.metric("Status", "🔄 Running")
+        elif status == 'running_chip':
+            st.metric("Status", "🔧 Running Chip")
+        elif status == 'completed':
+            st.metric("Status", "✅ Complete")
+        elif status == 'failed':
+            st.metric("Status", "❌ Failed")
         else:
-            st.metric("Status", f"⚪ {current_state_data['status']}")
+            st.metric("Status", f"📊 {status.title()}")
     with col3:
         st.metric("Steps", len(current_state_data['state_steps']))
     with col4:
@@ -1398,11 +1830,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                     set_message('success', "✅ All steps executed!")
                     st.rerun()
         
-        # Seed step creation (simplified)
-        st.divider()
-        if st.button("🌱 Start Seed Step", use_container_width=True):
-            st.session_state.show_seed_dialog = True
-            st.rerun()
+
     
     with col2:
         # Workflow visualization
@@ -1677,6 +2105,9 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                     if cancel:
                         st.session_state.show_single_data_dialog = False
                         st.rerun()
+
+    # INLINE SINGLE DATA DIALOGS
+    step_builder.render_inline_single_data_dialogs()
 
     # Display pending steps
     if st.session_state.pending_steps:
