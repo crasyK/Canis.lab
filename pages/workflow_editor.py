@@ -1,4 +1,3 @@
-from anyio import Path
 import streamlit as st
 from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
@@ -18,6 +17,232 @@ import os
 
 # Page config
 st.set_page_config(page_title="Workflow Editor", layout="wide")
+
+# New UX Classes
+class SmartStepBuilder:
+    """Dropdown-based step creation interface"""
+    
+    def __init__(self, current_workflow):
+        self.current_workflow = current_workflow
+        self.available_llm_tools = get_available_llm_tools()
+        self.available_code_tools = get_available_code_tools()
+    
+    def render(self):
+        """Main step builder interface"""
+        st.subheader("🔧 Add New Step")
+        
+        col1, col2 = st.columns([1, 2])
+        
+        with col1:
+            tool_type = st.radio("Type:", ["LLM", "Code"], horizontal=True)
+            available_tools = (self.available_llm_tools if tool_type == "LLM" 
+                             else self.available_code_tools)
+            
+            selected_tool = st.selectbox(
+                "Tool:", 
+                options=["Select tool..."] + list(available_tools),
+                key="tool_selector"
+            )
+        
+        with col2:
+            step_name = st.text_input(
+                "Step Name:", 
+                placeholder="Enter descriptive name...",
+                key="step_name_input"
+            )
+            
+            # Test mode toggle
+            test_mode = st.checkbox(
+                "🧪 Test Mode (5 entries only)",
+                key="test_mode_toggle",
+                help="Run on sample data first"
+            )
+        
+        # Smart connections (only if tool selected)
+        if selected_tool != "Select tool...":
+            connections = self.render_smart_connections(selected_tool, tool_type)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("➕ Add Step", disabled=not step_name):
+                    self.add_step_with_connections(tool_type, selected_tool, step_name, connections, test_mode)
+                    st.rerun()
+            with col2:
+                if st.button("🔄 Reset Form"):
+                    # Clear form by refreshing keys
+                    for key in ['tool_selector', 'step_name_input', 'test_mode_toggle']:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.rerun()
+    
+    def render_smart_connections(self, tool_name, tool_type):
+        """Render intelligent connection dropdowns"""
+        # Get tool requirements
+        if tool_type == "LLM":
+            tool_spec = prepare_data(tool_name)
+        else:
+            tool_spec = prepare_tool_use(tool_name)
+        
+        input_requirements = tool_spec.get('in', {})
+        
+        if not input_requirements:
+            st.info("ℹ️ This tool doesn't require input connections")
+            return {}
+        
+        st.write("**📥 Input Connections:**")
+        connections = {}
+        
+        for param_name, param_spec in input_requirements.items():
+            connections[param_name] = self.render_connection_dropdown(param_name, param_spec)
+        
+        return {k: v for k, v in connections.items() if v}
+    
+    def render_connection_dropdown(self, param_name, param_spec):
+        """Individual connection dropdown with smart filtering"""
+        viable_sources = self.get_viable_sources(param_spec)
+        needs_single_data = self.param_accepts_single_data(param_spec)
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            if viable_sources:
+                options = ["Select source..."] + [
+                    f"{src['step_name']}.{src['param_name']}" 
+                    for src in viable_sources
+                ]
+                
+                selected = st.selectbox(
+                    f"**{param_name}**:",
+                    options,
+                    key=f"conn_{param_name}",
+                    help=f"Type: {param_spec}"
+                )
+                
+                if selected != "Select source...":
+                    return selected
+            else:
+                st.warning(f"⚠️ No compatible sources for **{param_name}**")
+        
+        with col2:
+            # Inline single data creation
+            if needs_single_data and st.button(f"➕ Single", key=f"single_{param_name}"):
+                return self.create_inline_single_data(param_name, param_spec)
+        
+        return None
+    
+    def get_viable_sources(self, param_spec):
+        """Get list of viable data sources for a parameter"""
+        # Get current state data
+        state_file_path = dir_manager.get_state_file_path(self.current_workflow)
+        if not state_file_path.exists():
+            return []
+            
+        current_state_data = dir_manager.load_json(state_file_path)
+        viable_sources = []
+        
+        # Check completed steps' outputs
+        for step_data in current_state_data.get('state_steps', []):
+            if step_data.get('status') == 'completed':
+                for param_name, file_path in step_data.get('data', {}).get('out', {}).items():
+                    # TODO: Add type checking logic here
+                    viable_sources.append({
+                        'step_name': step_data.get('name', 'Unknown'),
+                        'param_name': param_name,
+                        'source_ref': f"{step_data.get('name', 'Unknown')}.{param_name}"
+                    })
+        
+        # Check single data blocks
+        for node in current_state_data.get('nodes', []):
+            if node.get('state') == 'single_data':
+                viable_sources.append({
+                    'step_name': 'Single Data',
+                    'param_name': node.get('name', 'Unknown'),
+                    'source_ref': node.get('name', 'Unknown')
+                })
+        
+        return viable_sources
+    
+    def param_accepts_single_data(self, param_spec):
+        """Check if parameter can accept single data input"""
+        # Most parameters can accept single data
+        return True
+    
+    def create_inline_single_data(self, param_name, param_spec):
+        """Create single data inline"""
+        # This would open a quick popup for single data creation
+        st.session_state[f'create_single_for_{param_name}'] = True
+        return None
+    
+    def add_step_with_connections(self, tool_type, tool_name, step_name, connections, test_mode=False):
+        """Add step with pre-validated connections"""
+        try:
+            if test_mode:
+                add_test_step(tool_type.lower(), step_name, tool_name)
+                set_message('success', f"🧪 Test step '{step_name}' added!")
+            else:
+                add_pending_step(tool_type.lower(), step_name, tool_name)
+                set_message('success', f"✅ Step '{step_name}' added!")
+            
+            # TODO: Apply connections after step creation
+            
+        except Exception as e:
+            set_message('error', f"Error adding step: {e}")
+
+class DataPreview:
+    """Data preview panel for clicked nodes"""
+    
+    def __init__(self, current_workflow):
+        self.current_workflow = current_workflow
+    
+    def render_preview_panel(self, selected_node_id=None):
+        """Render data preview at bottom"""
+        if not selected_node_id:
+            st.info("👆 Click on a node above to preview its data")
+            return
+        
+        st.subheader(f"🔍 Data Preview: {selected_node_id}")
+        
+        try:
+            sample_data = self.get_sample_data(selected_node_id)
+            
+            if sample_data:
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Type", sample_data.get('type', 'Unknown'))
+                with col2:
+                    st.metric("Total Items", sample_data.get('total_count', 0))
+                with col3:
+                    st.metric("Showing", min(5, sample_data.get('total_count', 0)))
+                
+                st.write("**Sample Data:**")
+                if sample_data['type'] == 'json':
+                    st.json(sample_data['sample'])
+                else:
+                    for i, item in enumerate(sample_data['sample'][:5]):
+                        st.text(f"{i}: {str(item)[:100]}{'...' if len(str(item)) > 100 else ''}")
+        except Exception as e:
+            st.error(f"Error loading preview: {e}")
+    
+    def get_sample_data(self, node_id):
+        """Get sample data for preview from node ID"""
+        try:
+            # Load current state
+            state_file_path = dir_manager.get_state_file_path(self.current_workflow)
+            current_state_data = dir_manager.load_json(state_file_path)
+            
+            # Use existing preview logic
+            if is_completed_output_marker(node_id, current_state_data):
+                data = load_marker_preview_data(node_id, current_state_data)
+                if 'error' not in data:
+                    return {
+                        'type': 'json',
+                        'sample': data,
+                        'total_count': len(data) if isinstance(data, (dict, list)) else 1
+                    }
+            
+            return None
+        except Exception as e:
+            return None
 
 def show_persistent_message():
     """Display persistent messages that survive page reloads"""
@@ -1061,19 +1286,7 @@ with st.sidebar:
         st.subheader("🔧 Workflow Actions")
         st.caption(f"Current: {st.session_state.current_workflow}")
         
-        # Action buttons
-        if st.button("🌱 Start Seed Step", key="sidebar_start_seed_btn", use_container_width=True):
-            st.session_state.show_seed_dialog = True
-            st.rerun()
-        
-        if st.button("🤖 Add LLM Tool", key="sidebar_add_llm_btn", use_container_width=True):
-            st.session_state.show_llm_dialog = True
-            st.rerun()
-        
-        if st.button("⚙️ Add Code Tool", key="sidebar_add_code_btn", use_container_width=True):
-            st.session_state.show_code_dialog = True
-            st.rerun()
-        
+        # Simplified action buttons - step creation now in main interface
         if st.button("📊 Add Single Data", key="sidebar_add_single_btn", use_container_width=True):
             st.session_state.show_single_data_dialog = True
             st.rerun()
@@ -1145,7 +1358,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
     state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
     current_state_data = dir_manager.load_json(state_file_path)
 
-    # Workflow info
+    # Workflow info metrics (keep existing)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric("Workflow", current_state_data['name'])
@@ -1168,6 +1381,76 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             st.metric("🟡 Running", len(running_batches))
         else:
             st.metric("Running", 0)
+    
+    # NEW SIMPLIFIED INTERFACE LAYOUT
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        # Smart step builder (replaces complex dialogs)
+        step_builder = SmartStepBuilder(st.session_state.current_workflow)
+        step_builder.render()
+        
+        # Execute pending steps
+        if st.session_state.pending_steps:
+            st.divider()
+            if st.button(f"🚀 Execute {len(st.session_state.pending_steps)} Steps", use_container_width=True):
+                if execute_pending_steps():
+                    set_message('success', "✅ All steps executed!")
+                    st.rerun()
+        
+        # Seed step creation (simplified)
+        st.divider()
+        if st.button("🌱 Start Seed Step", use_container_width=True):
+            st.session_state.show_seed_dialog = True
+            st.rerun()
+    
+    with col2:
+        # Workflow visualization
+        st.subheader("📊 Workflow Visualization")
+        updated_flow_state = streamlit_flow(
+            'workflow_editor',
+            st.session_state.flow_state,
+            fit_view=True,
+            height=500,
+            enable_node_menu=False,
+            enable_edge_menu=False,
+            enable_pane_menu=False,
+            get_edge_on_click=True,
+            get_node_on_click=True,
+            show_minimap=True,
+            hide_watermark=True,
+            allow_new_edges=True,
+            min_zoom=0.1,
+        ) 
+        
+        # Handle node clicks for data preview
+        if updated_flow_state.selected_id:
+            selected_id = updated_flow_state.selected_id
+            if handle_marker_click(selected_id, current_state_data):
+                st.rerun()
+
+        # Handle node updates (dragging) - NO FORCED REFRESH
+        nodes_updated = False
+        for node in updated_flow_state.nodes:
+            if 'parent' in node.id:
+                current_pos = tuple(dict(node.position).values())
+                prev_pos = tuple(node.data["prev_pos"])
+                if current_pos != prev_pos:
+                    step_number = int(node.id.split('-')[0])
+                    step_instance = step.get_instance_by_number(step_number)
+                    if step_instance:
+                        updated_nodes = step_instance.return_step(current_pos)
+                        updated_flow_state.nodes = [
+                            n for n in updated_flow_state.nodes
+                            if not n.id.startswith(f'{step_number}-')
+                        ]
+                        updated_flow_state.nodes.extend(updated_nodes)
+                        nodes_updated = True
+
+        # Always keep the SAME state object reference
+        st.session_state.flow_state = updated_flow_state
+        if nodes_updated:
+            st.rerun()
 
     # Running batch status (non-refreshing display)
     if running_batches:
@@ -1199,7 +1482,12 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                             st.error(f"Error: {e}")
         st.divider()
 
-    # UPDATED SEED STEP DIALOG WITH DROPDOWN
+    # Data preview panel (full width at bottom) - moved this up from the simplified layout
+    data_preview = DataPreview(st.session_state.current_workflow)
+    selected_node = updated_flow_state.selected_id if 'updated_flow_state' in locals() else None
+    data_preview.render_preview_panel(selected_node)
+
+    # UPDATED SEED STEP DIALOG WITH DROPDOWN (keep for seed creation)
     if st.session_state.get('show_seed_dialog', False):
         with st.expander("🌱 Start Seed Step", expanded=True):
             # Get available seed files
@@ -1301,87 +1589,16 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                     st.session_state.show_seed_dialog = False
                     st.rerun()
 
-    # LLM tool dialog
-    if st.session_state.get('show_llm_dialog', False):
-        with st.expander("🤖 Add LLM Tool", expanded=True):
-            with st.form("llm_form"):
-                step_name = st.text_input("Step Name:", key="llm_step_name")
-                available_llm_tools = get_available_llm_tools()
-                selected_llm_tool = st.selectbox("Select LLM Tool:", available_llm_tools, key="llm_tool_select")
+    # OLD DIALOGS COMMENTED OUT - REPLACED BY SmartStepBuilder
+    # # LLM tool dialog
+    # if st.session_state.get('show_llm_dialog', False):
+    #     with st.expander("🤖 Add LLM Tool", expanded=True):
+    #         # ... old dialog code ...
 
-                # Test mode toggle
-                st.divider()
-                test_mode = st.checkbox(
-                    "🧪 **Test Mode** - Run on 5 random entries first",
-                    key="llm_test_mode",
-                    help="Test your configuration on a small sample before processing the full dataset"
-                )
-                
-                if test_mode:
-                    st.info("📝 Test mode will create a separate test step that you can inspect before running the full dataset.")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    submitted = st.form_submit_button("Add LLM Tool")
-                    if submitted:
-                        if step_name and selected_llm_tool:
-                            if test_mode:
-                                add_test_step('llm', step_name, selected_llm_tool)
-                                set_message('success', f"🧪 LLM test step '{selected_llm_tool}' added to pending steps!")
-                            else:
-                                add_pending_step('llm', step_name, selected_llm_tool)
-                                set_message('success', f"🤖 LLM tool '{selected_llm_tool}' added to pending steps!")
-                            st.session_state.show_llm_dialog = False
-                            st.rerun()
-                        else:
-                            set_message('warning', "⚠️ Please fill in step name and select a tool.")
-
-                with col2:
-                    cancel = st.form_submit_button("Cancel")
-                    if cancel:
-                        st.session_state.show_llm_dialog = False
-                        st.rerun()
-
-    #CODE TOOL DIALOG
-    if st.session_state.get('show_code_dialog', False):
-        with st.expander("⚙️ Add Code Tool", expanded=True):
-            with st.form("code_form"):
-                step_name = st.text_input("Step Name:", key="code_step_name")
-                available_code_tools = get_available_code_tools()
-                selected_code_tool = st.selectbox("Select Code Tool:", available_code_tools, key="code_tool_select")
-
-                # Test mode toggle
-                st.divider()
-                test_mode = st.checkbox(
-                    "🧪 **Test Mode** - Run on 5 random entries first",
-                    key="code_test_mode",
-                    help="Test your configuration on a small sample before processing the full dataset"
-                )
-                
-                if test_mode:
-                    st.info("📝 Test mode will create a separate test step that you can inspect before running the full dataset.")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    submitted = st.form_submit_button("Add Code Tool")
-                    if submitted:
-                        if step_name and selected_code_tool:
-                            if test_mode:
-                                add_test_step('code', step_name, selected_code_tool)
-                                set_message('success', f"🧪 Code test step '{selected_code_tool}' added to pending steps!")
-                            else:
-                                add_pending_step('code', step_name, selected_code_tool)
-                                set_message('success', f"⚙️ Code tool '{selected_code_tool}' added to pending steps!")
-                            st.session_state.show_code_dialog = False
-                            st.rerun()
-                        else:
-                            set_message('warning', "⚠️ Please fill in step name and select a tool.")
-
-                with col2:
-                    cancel = st.form_submit_button("Cancel")
-                    if cancel:
-                        st.session_state.show_code_dialog = False
-                        st.rerun()
+    # #CODE TOOL DIALOG
+    # if st.session_state.get('show_code_dialog', False):
+    #     with st.expander("⚙️ Add Code Tool", expanded=True):
+    #         # ... old dialog code ...
 
     # SINGLE DATA DIALOG
     if st.session_state.get('show_single_data_dialog', False):
@@ -1509,100 +1726,11 @@ if st.session_state.current_workflow and st.session_state.flow_state:
         
         st.divider()
 
-    # Workflow visualization - NO AUTO-REFRESH, only manual updates
-    st.subheader("📊 Workflow Visualization")
-    updated_flow_state = streamlit_flow(
-        'workflow_editor',
-        st.session_state.flow_state,
-        fit_view=True,
-        height=600,
-        enable_node_menu=False,
-        enable_edge_menu=False,
-        enable_pane_menu=False,
-        get_edge_on_click=True,
-        get_node_on_click=True,
-        show_minimap=True,
-        hide_watermark=True,
-        allow_new_edges=True,
-        min_zoom=0.1,
-    ) 
+    # OLD WORKFLOW VISUALIZATION SECTION - REPLACED BY NEW LAYOUT
+    # (This section is now handled in the simplified interface above)
 
-    # Handle node clicks for data preview
-    if updated_flow_state.selected_id:
-        selected_id = updated_flow_state.selected_id
-        if handle_marker_click(selected_id, current_state_data):
-            st.rerun()
-
-    # Handle node updates (dragging) - NO FORCED REFRESH
-    nodes_updated = False
-    for node in updated_flow_state.nodes:
-        if 'parent' in node.id:
-            current_pos = tuple(dict(node.position).values())
-            prev_pos = tuple(node.data["prev_pos"])
-            if current_pos != prev_pos:
-                step_number = int(node.id.split('-')[0])
-                step_instance = step.get_instance_by_number(step_number)
-                if step_instance:
-                    updated_nodes = step_instance.return_step(current_pos)
-                    updated_flow_state.nodes = [
-                        n for n in updated_flow_state.nodes
-                        if not n.id.startswith(f'{step_number}-')
-                    ]
-                    updated_flow_state.nodes.extend(updated_nodes)
-                    nodes_updated = True
-
-    # Always keep the SAME state object reference
-    st.session_state.flow_state = updated_flow_state
-    if nodes_updated:
-        st.rerun()
-
-    # Node/Edge selection info (same as before)
-    if updated_flow_state.selected_id:
-        selected_id = updated_flow_state.selected_id
-        selected_node = None
-        for node in updated_flow_state.nodes:
-            if node.id == selected_id:
-                selected_node = node
-                break
-
-        if selected_node:
-            st.subheader(f"Selected Node: {selected_node.data.get('content', 'Unknown')}")
-            if 'parent' in selected_node.id:
-                step_number = int(selected_node.id.split('-')[0])
-                if step_number <= len(current_state_data['state_steps']):
-                    step_data = current_state_data['state_steps'][step_number - 1]
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write("**Step Information:**")
-                        st.write(f"Name: {step_data['name']}")
-                        st.write(f"Type: {step_data['type']}")
-                        st.write(f"Status: {step_data['status']}")
-                        if 'tool_name' in step_data:
-                            st.write(f"Tool: {step_data['tool_name']}")
-
-                    with col2:
-                        st.write("**Data Flow:**")
-                        st.write(f"Inputs: {len(step_data['data']['in'])}")
-                        st.write(f"Outputs: {len(step_data['data']['out'])}")
-                        if step_data['type'] == 'llm' and 'batch' in step_data:
-                            batch_id = step_data['batch'].get('upload_id', 'N/A')
-                            st.write(f"Batch ID: {batch_id}")
-
-            elif 'in-' in selected_node.id or 'out-' in selected_node.id:
-                st.write("**Marker Information:**")
-                node_content = selected_node.data.get('content', 'Unknown')
-                st.write(f"Marker Name: {node_content}")
-                for marker in current_state_data['nodes']:
-                    if marker['name'] == node_content:
-                        st.write(f"Type: {marker['type']}")
-                        st.write(f"State: {marker['state']}")
-                        st.write(f"File: {marker['file_name']}")
-                        break
-        else:
-            st.info(f"Selected ID: {selected_id} (Node details not available)")
-
-    # Data preview section
-    render_data_preview_section()
+    # OLD NODE SELECTION INFO - REPLACED BY DataPreview
+    # (Node selection info is now handled in the DataPreview panel)
 
 else:
     st.info("👆 Please create a new workflow or load an existing one from the sidebar.")

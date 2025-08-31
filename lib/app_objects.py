@@ -432,6 +432,43 @@ class step(object):
         
         print(f"✅ Reset step class state - instances: {len(cls.instances)}, steps: {len(cls.steps_arr)}")
         
+    def get_sample_data_for_preview(self, marker_key):
+        """Get sample data for marker preview"""
+        if marker_key in self.step_data.get('out', {}):
+            file_path = self.step_data['out'][marker_key]
+            return self.load_sample_from_file(file_path)
+        return None
+
+    def load_sample_from_file(self, file_path, sample_size=5):
+        """Load sample data from file"""
+        try:
+            if file_path.startswith('runs/'):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                
+                if isinstance(data, dict):
+                    sample_items = list(data.items())[:sample_size]
+                    return {
+                        'type': 'json',
+                        'sample': dict(sample_items),
+                        'total_count': len(data)
+                    }
+                elif isinstance(data, list):
+                    return {
+                        'type': 'list',
+                        'sample': data[:sample_size],
+                        'total_count': len(data)
+                    }
+            else:
+                # Single data
+                return {
+                    'type': 'single',
+                    'sample': [file_path],
+                    'total_count': 1
+                }
+        except Exception as e:
+            return None
+
     @classmethod
     def validate_node_id_uniqueness(cls):
         """Validate that all node IDs are unique across the flow"""

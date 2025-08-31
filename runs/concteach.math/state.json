@@ -131,22 +131,6 @@
         "list": "data"
       },
       "state": "created"
-    },
-    {
-      "name": "data_classification",
-      "file_name": "runs/concteach.math_20250830162221/data/Clean_data_classification_extracted.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "uploaded"
-    },
-    {
-      "name": "data_classification",
-      "file_name": "runs/concteach.math_20250830162221/data/cleaner_data_classification_extracted.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "uploaded"
     }
   ],
   "state_steps": [
@@ -251,48 +235,6 @@
         }
       },
       "status": "completed"
-    },
-    {
-      "name": "Clean",
-      "type": "llm",
-      "status": "uploaded",
-      "tool_name": "clean",
-      "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/Clean_batch.jsonl",
-        "upload_id": "batch_68b3406f6eb08190b55eb13f06fa7fd1",
-        "out": "runs/concteach.math_20250830162221/batch/Clean_data_classification.jsonl"
-      },
-      "data": {
-        "in": {
-          "__dirty_data__": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json",
-          "__lables__": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json",
-          "__criteria_verbose__": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json"
-        },
-        "out": {
-          "data_classification": "runs/concteach.math_20250830162221/data/Clean_data_classification_extracted.json"
-        }
-      }
-    },
-    {
-      "name": "cleaner",
-      "type": "llm",
-      "status": "uploaded",
-      "tool_name": "clean",
-      "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/cleaner_batch.jsonl",
-        "upload_id": "batch_68b3547bc1748190bc86e31a33ea5e3c",
-        "out": "runs/concteach.math_20250830162221/batch/cleaner_data_classification.jsonl"
-      },
-      "data": {
-        "in": {
-          "__lables__": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json",
-          "__criteria_verbose__": "runs/concteach.math_20250830162221/data/Expanded Vcrit_expanded_data_processed.json",
-          "__dirty_data__": "runs/concteach.math_20250830162221/data/user_prompt.json"
-        },
-        "out": {
-          "data_classification": "runs/concteach.math_20250830162221/data/cleaner_data_classification_extracted.json"
-        }
-      }
     }
   ]
 }
