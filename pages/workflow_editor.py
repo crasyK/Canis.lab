@@ -1,4 +1,6 @@
 import streamlit as st
+import os
+import json
 from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 from streamlit_flow.state import StreamlitFlowState
@@ -48,7 +50,7 @@ class SmartStepBuilder:
             
             selected_tool = st.selectbox(
                 "Tool:", 
-                options=["Select tool..."] + available_tools,
+                options=["Select tool..."] + list(available_tools),
                 key="tool_selector"
             )
         
@@ -619,6 +621,14 @@ if 'flow_state' not in st.session_state:
     st.session_state.flow_state = None
 if 'pending_steps' not in st.session_state:
     st.session_state.pending_steps = []
+
+# Initialize preview state
+if 'selected_marker_data' not in st.session_state:
+    st.session_state.selected_marker_data = None
+if 'selected_marker_name' not in st.session_state:
+    st.session_state.selected_marker_name = None
+if 'show_preview' not in st.session_state:
+    st.session_state.show_preview = False
 if 'show_seed_dialog' not in st.session_state:
     st.session_state.show_seed_dialog = False
 if 'show_llm_dialog' not in st.session_state:
@@ -755,39 +765,210 @@ def get_marker_display_name(node_id, current_state_data):
         return f"Marker {node_id}"
 
 def handle_marker_click(node_id, current_state_data):
-    """Handle clicks on output markers"""
-    if is_completed_output_marker(node_id, current_state_data):
-        marker_data = load_marker_preview_data(node_id, current_state_data)
-        st.session_state.selected_marker_data = marker_data
-        st.session_state.selected_marker_name = get_marker_display_name(node_id, current_state_data)
-        return True
-    return False
+    """Handle marker preview directly from state data"""
+    if not node_id or '-out-' not in node_id:
+        return False
+    
+    # Parse the node ID: format is {step_number}-out-{counter}
+    parts = node_id.split('-')
+    if len(parts) < 3:
+        return False
+        
+    try:
+        step_number = int(parts[0]) - 1  # Convert to 0-based index
+        marker_counter = int(parts[2]) - 1  # Convert to 0-based index
+    except ValueError:
+        st.error("Invalid node ID format")
+        return False
+    
+    # Get the step data directly from state
+    steps = current_state_data.get('state_steps', [])
+    if step_number >= len(steps):
+        st.error(f"Step {step_number + 1} not found")
+        return False
+    
+    step_data = steps[step_number]
+    output_data = step_data.get('data', {}).get('out', {})
+    
+    if not output_data:
+        st.warning("No output data found for this step")
+        return False
+    
+    # Get the marker by counter
+    marker_keys = list(output_data.keys())
+    if marker_counter >= len(marker_keys):
+        st.error(f"Marker {marker_counter + 1} not found")
+        return False
+    
+    marker_key = marker_keys[marker_counter]
+    file_path = output_data[marker_key]
+    
+    # Get the display name from nodes data
+    nodes = current_state_data.get('nodes', [])
+    display_name = get_marker_display_name_from_nodes(marker_key, file_path, nodes)
+    
+    # Load and show the preview data
+    preview_data = load_marker_preview_data(file_path)
+    show_marker_preview(display_name, preview_data, marker_key)
+    
+    return True
+
+def get_marker_display_name_from_nodes(marker_key, file_path, nodes):
+    """Get display name from nodes data"""
+    # First, try to find by file path
+    for node in nodes:
+        if node.get('file_name') == file_path:
+            return node.get('name', marker_key)
+    
+    # If not found by file path, try by marker name
+    for node in nodes:
+        if node.get('name') == marker_key:
+            return node.get('display_name', marker_key)
+    
+    # Fallback to marker key
+    return marker_key
+
+def load_marker_preview_data(file_path, sample_size=5):
+    """Load preview data from marker file path"""
+    try:
+        # Handle single data (non-file paths)
+        if isinstance(file_path, str) and not file_path.startswith('runs/') and not file_path.endswith(('.json', '.jsonl')):
+            return {
+                'type': 'single',
+                'sample': [file_path],
+                'total_count': 1
+            }
+        
+        # Handle file path resolution
+        final_path = file_path
+        if not os.path.exists(final_path):
+            return {
+                'type': 'error',
+                'sample': [f"File not found: {file_path}"],
+                'total_count': 0
+            }
+        
+        # Load the data
+        with open(final_path, 'r') as f:
+            data = json.load(f)
+        
+        if isinstance(data, dict):
+            sample_items = list(data.items())[:sample_size]
+            return {
+                'type': 'json',
+                'sample': dict(sample_items),
+                'total_count': len(data),
+                'file_path': final_path
+            }
+        elif isinstance(data, list):
+            return {
+                'type': 'list',
+                'sample': data[:sample_size],
+                'total_count': len(data),
+                'file_path': final_path
+            }
+        else:
+            return {
+                'type': 'single',
+                'sample': [data],
+                'total_count': 1,
+                'file_path': final_path
+            }
+            
+    except json.JSONDecodeError as e:
+        return {
+            'type': 'error',
+            'sample': [f"JSON decode error: {str(e)}"],
+            'total_count': 0
+        }
+    except Exception as e:
+        return {
+            'type': 'error',
+            'sample': [f"Error loading data: {str(e)}"],
+            'total_count': 0
+        }
+
+def show_marker_preview(display_name, preview_data, marker_key):
+    """Show the marker preview in UI"""
+    if not preview_data:
+        st.warning(f"No preview data available for {display_name}")
+        return
+    
+    # Store in session state for the render section to display
+    st.session_state.selected_marker_data = preview_data
+    st.session_state.selected_marker_name = display_name
+    st.session_state.show_preview = True
 
 def render_data_preview_section():
-    """Render expandable data preview section at bottom of editor"""
-    if st.session_state.selected_marker_data is not None:
+    """Render data preview section using the simplified approach"""
+    if (st.session_state.get('selected_marker_data') is not None and 
+        st.session_state.get('selected_marker_name') is not None):
         st.divider()
         
-        with st.expander(f"📊 Data Preview: {st.session_state.selected_marker_name or 'Unknown'}", expanded=True):
-            col1, col2 = st.columns([3, 1])
+        preview_data = st.session_state.selected_marker_data
+        display_name = st.session_state.selected_marker_name or 'Unknown'
+        
+        with st.expander(f"📊 Data Preview: {display_name}", expanded=True):
+            # Header with metrics
+            col1, col2, col3 = st.columns([2, 1, 1])
             
             with col1:
-                st.json(st.session_state.selected_marker_data)
+                st.subheader("Sample Data")
+                data_type = preview_data.get('type', 'unknown')
+                st.caption(f"Type: {data_type.upper()}")
             
             with col2:
-                if st.button("Clear Preview", key="clear_preview"):
-                    st.session_state.selected_marker_data = None
-                    st.session_state.selected_marker_name = None
+                total_count = preview_data.get('total_count', 0)
+                st.metric("Total Entries", total_count)
+                sample_count = len(preview_data.get('sample', []))
+                st.caption(f"Showing {sample_count} of {total_count}")
+            
+            with col3:
+                if st.button("❌ Clear", key="clear_preview", type="secondary"):
+                    # Force clear all preview-related session state
+                    keys_to_clear = ['selected_marker_data', 'selected_marker_name', 'show_preview']
+                    for key in keys_to_clear:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.success("Preview cleared!")
                     st.rerun()
-                
-                # Show data type and size info
-                data = st.session_state.selected_marker_data
-                if isinstance(data, dict):
-                    st.caption(f"Type: Dictionary\nKeys: {len(data)}")
-                elif isinstance(data, list):
-                    st.caption(f"Type: List\nItems: {len(data)}")
+            
+            # Display the actual data
+            sample = preview_data.get('sample', [])
+            data_type = preview_data.get('type', 'unknown')
+            
+            if data_type == 'error':
+                st.error(sample[0] if sample else "Unknown error")
+            elif data_type == 'json' and isinstance(sample, dict):
+                st.json(sample)
+            elif data_type == 'list' and isinstance(sample, list):
+                if len(sample) == 0:
+                    st.info("Empty list")
                 else:
-                    st.caption(f"Type: {type(data).__name__}")
+                    for i, item in enumerate(sample):
+                        with st.container():
+                            st.write(f"**Entry {i+1}:**")
+                            if isinstance(item, dict):
+                                st.json(item)
+                            else:
+                                st.code(str(item))
+                            if i < len(sample) - 1:
+                                st.divider()
+            elif data_type == 'single':
+                st.code(str(sample[0]) if sample else "No data")
+            else:
+                st.code(str(sample))
+            
+            # Show file path if available
+            if preview_data.get('file_path'):
+                with st.expander("📁 File Information", expanded=False):
+                    st.code(preview_data['file_path'])
+                    if os.path.exists(preview_data['file_path']):
+                        try:
+                            file_size = os.path.getsize(preview_data['file_path'])
+                            st.caption(f"File size: {file_size:,} bytes")
+                        except:
+                            st.caption("File size: Unable to determine")
 
 def calculate_seed_combinations_with_breakdown(seed_data):
     """Calculate total combinations and provide detailed breakdown"""
@@ -1910,10 +2091,8 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                             st.error(f"Error: {e}")
         st.divider()
 
-    # Data preview panel (full width at bottom) - moved this up from the simplified layout
-    data_preview = DataPreview(st.session_state.current_workflow)
-    selected_node = updated_flow_state.selected_id if 'updated_flow_state' in locals() else None
-    data_preview.render_preview_panel(selected_node)
+    # Data preview panel (full width at bottom)
+    render_data_preview_section()
 
     # UPDATED SEED STEP DIALOG WITH DROPDOWN (keep for seed creation)
     if st.session_state.get('show_seed_dialog', False):

@@ -37,9 +37,6 @@ def start_classification_chip(classification_description: str, classification_li
 def finish_classification_chip(classification_description: str, classification_list: list, data: dict, batch_data: dict):
     print("Finishing classification chip...")
     segregated_data = execute_code_tool("segregate", {"data": data, "classification": batch_data, "labels": classification_list})
-    output_marker_data = {}
-    for classification in classification_list:
-        output_marker_data[classification] = save_code_tool_results("select", execute_code_tool("select", {"segregated_data":segregated_data, "label":classification}), None)
     return segregated_data
 
 def start_dialogue_parsing_chip(data: dict, batch_file_location: str):

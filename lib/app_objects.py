@@ -1,5 +1,6 @@
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 import json
+import os
 
 def create_styled_steps_from_state(state_data):
     """Create step instances from state file data with proper styling and real names"""
@@ -447,34 +448,92 @@ class step(object):
         return None
 
     def load_sample_from_file(self, file_path, sample_size=5):
-        """Load sample data from file"""
+        """Load sample data from file with enhanced error handling"""
         try:
-            if file_path.startswith('runs/'):
-                with open(file_path, 'r') as f:
-                    data = json.load(f)
-                
-                if isinstance(data, dict):
-                    sample_items = list(data.items())[:sample_size]
-                    return {
-                        'type': 'json',
-                        'sample': dict(sample_items),
-                        'total_count': len(data)
-                    }
-                elif isinstance(data, list):
-                    return {
-                        'type': 'list',
-                        'sample': data[:sample_size],
-                        'total_count': len(data)
-                    }
-            else:
-                # Single data
+            # Handle single data (non-file paths)
+            if self.is_single_data(file_path):
                 return {
                     'type': 'single',
                     'sample': [file_path],
-                    'total_count': 1
+                    'total_count': 1,
+                    'file_path': str(file_path)
                 }
+            
+            # Handle file-based data
+            if not file_path.startswith('runs/'):
+                # Try to resolve path using directory manager
+                try:
+                    from lib.directory_manager import dir_manager
+                    resolved_path = dir_manager.resolve_path(file_path)
+                    if resolved_path and resolved_path.exists():
+                        file_path = str(resolved_path)
+                    else:
+                        return {
+                            'type': 'error',
+                            'sample': [f"File not found: {file_path}"],
+                            'total_count': 0,
+                            'error': 'File not found'
+                        }
+                except:
+                    # Fallback if directory manager not available
+                    if not os.path.exists(file_path):
+                        return {
+                            'type': 'error',
+                            'sample': [f"File not found: {file_path}"],
+                            'total_count': 0,
+                            'error': 'File not found'
+                        }
+            
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+            
+            if isinstance(data, dict):
+                sample_items = list(data.items())[:sample_size]
+                return {
+                    'type': 'json',
+                    'sample': dict(sample_items),
+                    'total_count': len(data),
+                    'file_path': file_path,
+                    'sample_count': len(sample_items)
+                }
+            elif isinstance(data, list):
+                return {
+                    'type': 'list',
+                    'sample': data[:sample_size],
+                    'total_count': len(data),
+                    'file_path': file_path,
+                    'sample_count': len(data[:sample_size])
+                }
+            else:
+                return {
+                    'type': 'single',
+                    'sample': [data],
+                    'total_count': 1,
+                    'file_path': file_path,
+                    'sample_count': 1
+                }
+                
+        except FileNotFoundError:
+            return {
+                'type': 'error',
+                'sample': [f"File not found: {file_path}"],
+                'total_count': 0,
+                'error': 'File not found'
+            }
+        except json.JSONDecodeError as e:
+            return {
+                'type': 'error',
+                'sample': [f"JSON decode error: {str(e)}"],
+                'total_count': 0,
+                'error': 'Invalid JSON'
+            }
         except Exception as e:
-            return None
+            return {
+                'type': 'error',
+                'sample': [f"Error loading data: {str(e)}"],
+                'total_count': 0,
+                'error': str(e)
+            }
 
     @classmethod
     def validate_node_id_uniqueness(cls):
