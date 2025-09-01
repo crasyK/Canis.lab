@@ -13,6 +13,11 @@ available_tools_global = {
             "in": {"structured_content": {"json":"data"}, "key_name": {"str":"single"}},
             "out": {"bound_data": {"json":"data"}}
         }},
+    "combine": {
+        "data_markers": {
+            "in": {"data_A": {"json":"data"}, "data_B": {"json":"data"}},
+            "out": {"combined_data": {"json":"data"}}
+        }},
     "finalize": {
         "data_markers": {
             "in": {"data":{"json":"data"}},
@@ -96,6 +101,14 @@ def merge(prefix_data, sufix_data):
         
     return final_list
 
+def combine(data_A, data_B):
+    """Combines two dictionaries into a single dictionary."""
+    combined = []
+    for key, value in data_A.items():
+        combined.append(value)
+    for key, value in data_B.items():
+        combined.append(value)
+    return combined
 
 def bind(structured_content, key_name):
     data = []
@@ -149,8 +162,9 @@ REGISTRY: dict[str, Callable[..., Any]] = {
     "segregate": segregate,
     "select": select,
     "count": count,
-    "percentage": percentage,    
-    "expand": expand
+    "percentage": percentage,
+    "expand": expand,
+    "combine": combine
 }
 
 def prepare_tool_use(tool_name):

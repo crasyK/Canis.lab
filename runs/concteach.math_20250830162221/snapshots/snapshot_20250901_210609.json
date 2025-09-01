@@ -161,22 +161,6 @@
         "json": "data"
       },
       "state": "completed"
-    },
-    {
-      "name": "combined_data",
-      "file_name": "runs/concteach.math_20250830162221/data/Results_combined_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "combined_data",
-      "file_name": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -257,36 +241,6 @@
           "reject": "runs/concteach.math_20250830162221/data/Classify_reject_extracted.json"
         }
       }
-    },
-    {
-      "name": "Results",
-      "type": "code",
-      "tool_name": "combine",
-      "data": {
-        "in": {
-          "data_A": "runs/concteach.math_20250830162221/data/Classify_excellent_extracted.json",
-          "data_B": "runs/concteach.math_20250830162221/data/Classify_good_extracted.json"
-        },
-        "out": {
-          "combined_data": "runs/concteach.math_20250830162221/data/Results_combined_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "Results2",
-      "type": "code",
-      "tool_name": "combine",
-      "data": {
-        "in": {
-          "data_A": "runs/concteach.math_20250830162221/data/Classify_excellent_extracted.json",
-          "data_B": "runs/concteach.math_20250830162221/data/Classify_good_extracted.json"
-        },
-        "out": {
-          "combined_data": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json"
-        }
-      },
-      "status": "completed"
     }
   ]
 }
