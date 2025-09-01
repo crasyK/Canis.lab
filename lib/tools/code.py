@@ -48,11 +48,6 @@ available_tools_global = {
 def get_available_code_tools():
     return available_tools_global.keys()
 
-def get_data_from_file(file_path):
-    with open(file_path, "r") as f:
-        data = json.load(f)
-    return data
-
 def merge(prefix_data, sufix_data):
     """Merges two dictionaries into a list of merged lists based on flexible rules."""
     # Get all unique keys from both dictionaries
@@ -127,8 +122,7 @@ def segregate(data, classification, labels):
     return_data = {}
     for label in labels:
         return_data[label] = {}
-    print(classification)
-    for i, item in enumerate(data):
+    for i, item in data.items():
         label= json.loads(classification[str(i)])["status"]
         return_data[label][i] = item
     return return_data
@@ -167,21 +161,20 @@ def prepare_tool_use(tool_name):
     return available_tools_global[tool_name].get("data_markers", {})
 
 
-def execute_code_tool(tool_name, addresses):
+def execute_code_tool(tool_name, data):
     fn = REGISTRY.get(tool_name)
     if not fn:
         raise ValueError(f"Unknown tool '{tool_name}'")
-
-    data = {}
-    for address_key, address in addresses.items():
-        try: 
-            data.update({address_key: get_data_from_file(address)})
-        except:
-            data.update({address_key: address})
-
     return fn(**data)
 
 def save_code_tool_results(tool_name, results, filename):
+    if filename is None:
+        print(f"Skipping save for tool '{tool_name}'")
+        dataset = {}
+        for i, item in enumerate(results):
+                dataset[i] = item
+        return dataset
+
     if tool_name == "finalize":
         finalized_dataset = results
         finalized_dataset.save_to_disk(filename)

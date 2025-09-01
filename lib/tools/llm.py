@@ -45,18 +45,14 @@ import json
 
 def generate_llm_tool_batch_file(tool_name, data, file_to_save):
     print(f"🔍 DEBUG - Batch generation for {tool_name}:")
-    print(f"   data parameter: {data}")
     
     original_template = get_tool_template(tool_name)
     separated_data = {}
 
     batch = []
     for data_key, data_value in data.items():
-        print(f"🔍 DEBUG - Processing data_key: {data_key}, data_value: {data_value}")
         separated_data[data_key] = []
-        with open(data_value, 'r') as file:
-            data_json = json.load(file)
-        for key, value in data_json.items():
+        for key, value in data_value.items():
             separated_data[data_key].append(value)
     
     for i, column in enumerate(zip(*separated_data.values())):

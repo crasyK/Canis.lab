@@ -1,13 +1,13 @@
 import json
 from typing import Callable, Any
 
-from lib.tools.code import execute_code_tool
+from lib.tools.code import execute_code_tool, save_code_tool_results
 from lib.tools.llm import generate_llm_tool_batch_file, get_available_llm_tools, get_tool_template
 
 available_chips = {
     "Classification":{
         "data_markers":{
-            "in": {"classification_description":{"str":"single"}, "classification list":{"list":"single"}, "data":{"json":"data"}},
+            "in": {"classification_description":{"str":"single"}, "classification_list":{"list":"single"}, "data":{"json":"data"}},
             "out": [] # Empty because the amount of final data outputs is dependent on the classification list
         }
     },
@@ -23,24 +23,24 @@ def get_available_chips():
     return available_chips
 
 def start_classification_chip(classification_description: str, classification_list: list, data: dict, batch_file_location: str):
-    expanded_descriptions = execute_code_tool("expand", {"single": classification_description, "data_to_adapt_to": data})
-    expanded_classification_list = execute_code_tool("expand", {"single": classification_list, "data_to_adapt_to": data})
+    expanded_descriptions = save_code_tool_results("expand",execute_code_tool("expand", {"single": classification_description, "data_to_adapt_to": data}),None)
+    expanded_classification_list = save_code_tool_results("expand",execute_code_tool("expand", {"single": classification_list, "data_to_adapt_to": data}),None)
     generate_llm_tool_batch_file("clean", {"__criteria_verbose__": expanded_descriptions, "__lables__": expanded_classification_list, "__dirty_data__": data}, batch_file_location)
 
     output_markers = {}
 
-    for classification in expanded_classification_list:
+    for classification in classification_list:
         output_markers.update({classification: {"json":"data"}})
 
     return output_markers
 
 def finish_classification_chip(classification_description: str, classification_list: list, data: dict, batch_data: dict):
+    print("Finishing classification chip...")
     segregated_data = execute_code_tool("segregate", {"data": data, "classification": batch_data, "labels": classification_list})
     output_marker_data = {}
     for classification in classification_list:
-        output_marker_data[classification] = execute_code_tool("select", {"segregated_data":segregated_data, "label":classification})
-
-    return output_marker_data
+        output_marker_data[classification] = save_code_tool_results("select", execute_code_tool("select", {"segregated_data":segregated_data, "label":classification}), None)
+    return segregated_data
 
 def start_dialogue_parsing_chip(data: dict, batch_file_location: str):
     generate_llm_tool_batch_file("parse_conversation", {"__conversation__": data}, batch_file_location)
@@ -75,10 +75,9 @@ def finish_chip_tool(chip_name, data, batch_data):
     return fn["finish"](**data, batch_data=batch_data)
 
 def save_chip_results(chip_name, results, filenames):
-    # Save the results of the code tool to a file
-    dataset = {}
     for key, data in results.items():
-        for i, item in enumerate(data):
+        dataset = {}
+        for i, item in data.items():
             dataset[i] = item
         with open(filenames[key], 'w') as f:
             json.dump(dataset, f)

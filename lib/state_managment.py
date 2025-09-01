@@ -241,13 +241,101 @@ def get_uploaded_markers(state_file):
 
     return [node for node in state["nodes"] if node["state"] == "uploaded"]
 
+def get_data_from_marker_data_in(state_file, data_in, test_mode=False):
+    data_content = {}
+    
+    for key, value in data_in.items():
+        
+        print(f"🔍 DEBUG get_marker_data_and_addresses - {key} resolving marker '{value}' (test_mode: {test_mode})")
+            
+        try:
+            with open(value, 'r') as f:
+                content = json.load(f)
+            data_content[key] = content
+            if test_mode:
+                    if isinstance(content, dict):
+                        content = dict(list(content.items())[:5])
+                        print(f"🧪 TEST MODE: Limited dict from full to 5 entries")
+                    elif isinstance(content, list):
+                        content = content[:5]
+                        print(f"🧪 TEST MODE: Limited list from full to 5 items")
+        except:
+            # find node that has the same name as the marker
+            data_content[key] = value
+
+            state = dir_manager.load_json(state_file)
+            for node in state["nodes"]:
+                if node["name"] == value and node.get("state") == "single_data":
+                    data_content[key] = node["file_name"]
+                    break
+            # If we can't load from file, use the file_name as content (fallback)
+            
+        
+
+    return data_content
+        
+
+
 def get_marker_data_from_dict(state_file, marker_reference_dict, test_mode=False):
-    """Get marker data with optional test mode limiting"""
-    addresses = {}
+    """Get marker data content (not file paths) with optional test mode limiting"""
+    data = {}
     
     for key, value in marker_reference_dict.items():
         try:
             print(f"🔍 DEBUG get_marker_data - resolving marker '{value}' (test_mode: {test_mode})")
+            
+            state = dir_manager.load_json(state_file)
+            file_path = None
+            
+            # Find the marker in nodes
+            marker_node = None
+            for node in state["nodes"]:
+                if node["name"] == value:
+                    marker_node = node
+                    break
+            
+            if marker_node:
+                file_path = marker_node["file_name"]
+            else:
+                # Try to find in completed step outputs
+                step_output_path = find_step_output_marker(state, value)
+                if step_output_path:
+                    file_path = step_output_path
+                else:
+                    raise ValueError(f"Marker '{value}' not found in state steps")
+            
+            # Load the actual content from file
+            print(f"📁 Loading data from: {file_path}")
+            with open(file_path, 'r') as f:
+                content = json.load(f)
+            
+            # Apply test mode limiting if needed
+            if test_mode:
+                if isinstance(content, dict):
+                    content = dict(list(content.items())[:5])
+                    print(f"🧪 TEST MODE: Limited dict from full to 5 entries")
+                elif isinstance(content, list):
+                    content = content[:5]
+                    print(f"🧪 TEST MODE: Limited list from full to 5 items")
+            
+            data[key] = content
+            print(f"✅ Loaded data for '{value}': {type(content)} with {len(content) if hasattr(content, '__len__') else 'N/A'} items")
+            
+        except Exception as e:
+            print(f"❌ FAILED to resolve marker '{value}': {e}")
+            # For critical failures, don't continue with bad data
+            raise e
+
+    return data
+
+def get_marker_data_and_addresses(state_file, marker_reference_dict, test_mode=False):
+    """Get both marker data content and file addresses for tools"""
+    data_content = {}
+    addresses = {}
+    
+    for key, value in marker_reference_dict.items():
+        try:
+            print(f"🔍 DEBUG get_marker_data_and_addresses - resolving marker '{value}' (test_mode: {test_mode})")
             
             state = dir_manager.load_json(state_file)
             
@@ -259,65 +347,75 @@ def get_marker_data_from_dict(state_file, marker_reference_dict, test_mode=False
                     break
             
             if marker_node and marker_node.get("state") == "single_data":
-                # Single data - load the actual content
+                # Handle single data - the file_name contains the actual content
                 file_path = marker_node["file_name"]
+                addresses[key] = file_path
+                
+                # For single data, load the content from the file
                 try:
                     with open(file_path, 'r') as f:
                         content = json.load(f)
-                    addresses[key] = content
-                    print(f"✅ Resolved single data '{value}' content: {str(content)[:100]}...")
+                    data_content[key] = content
+                    print(f"✅ Resolved single data '{value}': {str(content)[:100]}...")
                 except Exception as e:
-                    print(f"⚠️ Failed to load single data content: {e}")
+                    print(f"⚠️ Failed to load single data content from {file_path}: {e}")
+                    # If we can't load from file, use the file_name as content (fallback)
+                    data_content[key] = file_path
+                    
+            elif marker_node:
+                # Handle regular data markers
+                file_path = marker_node["file_name"]
+                addresses[key] = file_path
+                
+                # Load the actual content from file
+                with open(file_path, 'r') as f:
+                    content = json.load(f)
+                
+                # Apply test mode limiting if needed
+                if test_mode:
+                    if isinstance(content, dict):
+                        content = dict(list(content.items())[:5])
+                        print(f"🧪 TEST MODE: Limited dict from full to 5 entries")
+                    elif isinstance(content, list):
+                        content = content[:5]
+                        print(f"🧪 TEST MODE: Limited list from full to 5 items")
+                
+                data_content[key] = content
+                print(f"✅ Loaded regular data for '{value}': {type(content)} with {len(content) if hasattr(content, '__len__') else 'N/A'} items")
+                
+            else:
+                # Try to find in completed step outputs
+                step_output_path = find_step_output_marker(state, value)
+                if step_output_path:
+                    file_path = step_output_path
                     addresses[key] = file_path
                     
-            else:
-                # Regular file-based data or step output - also load content for chip tools
-                try:
-                    file_path = get_file_from_marker(state_file, value)
+                    # Load the actual content from file
+                    with open(file_path, 'r') as f:
+                        content = json.load(f)
                     
-                    # Load the actual content instead of just returning the path
-                    try:
-                        with open(file_path, 'r') as f:
-                            content = json.load(f)
-                        
-                        # Apply test mode limiting if needed
-                        if test_mode and isinstance(content, dict):
+                    # Apply test mode limiting if needed
+                    if test_mode:
+                        if isinstance(content, dict):
                             content = dict(list(content.items())[:5])
-                            print(f"🧪 TEST MODE: Limited data from full to 5 entries")
-                        elif test_mode and isinstance(content, list):
+                            print(f"🧪 TEST MODE: Limited dict from full to 5 entries")
+                        elif isinstance(content, list):
                             content = content[:5]
                             print(f"🧪 TEST MODE: Limited list from full to 5 items")
-                        
-                        addresses[key] = content
-                        print(f"✅ Resolved marker '{value}' content: {str(content)[:100]}...")
-                        
-                    except Exception as e:
-                        print(f"⚠️ Failed to load content, using path: {e}")
-                        addresses[key] = file_path
-                        
-                except ValueError as e:
-                    print(f"❌ FAILED to resolve marker '{value}': {e}")
-                    # Try to find in completed step outputs
-                    step_output_path = find_step_output_marker(state, value)
-                    if step_output_path:
-                        try:
-                            with open(step_output_path, 'r') as f:
-                                content = json.load(f)
-                            addresses[key] = content
-                            print(f"✅ Found step output '{value}' content: {str(content)[:100]}...")
-                        except Exception as load_e:
-                            addresses[key] = step_output_path
-                            print(f"✅ Found step output '{value}' at: {step_output_path}")
-                    else:
-                        raise e
-                        
+                    
+                    data_content[key] = content
+                    print(f"✅ Found step output '{value}' and loaded content: {type(content)}")
+                else:
+                    raise ValueError(f"Marker '{value}' not found in state steps")
+            
+            print(f"📁 File address for '{value}': {addresses[key]}")
+            
         except Exception as e:
             print(f"❌ FAILED to resolve marker '{value}': {e}")
-            # Return the original value as fallback
-            addresses[key] = value
+            # For critical failures, raise the error
+            raise e
     
-    return addresses
-
+    return data_content, addresses
 
 def find_step_output_marker(state, marker_name):
     """Find a marker in completed step outputs"""
@@ -398,12 +496,13 @@ def complete_running_step(state_file):
     batch_id = last_step["batch"]["upload_id"]
     print(f"Checking step: {last_step['name']} with batch ID: {batch_id}")
     
-    output_marker = get_uploaded_markers(state_file)[-1]
+    
     status, counts = check_batch_job(batch_id)
 
     if status == "completed":
         last_step["status"] = "completed"
-        
+        print("Batch job completed successfully")
+
         # Use DirectoryManager for batch results path
         batch_results_path = dir_manager.get_batch_dir(workflow_name) / f"{last_step['name']}_results.jsonl"
         last_step["batch"]["out"] = str(batch_results_path)
@@ -412,17 +511,23 @@ def complete_running_step(state_file):
         download_batch_results(batch_id, last_step["batch"]["out"])
         
         # Use DirectoryManager for data output path
+        
         if state["status"] == "running_chip":
+            relevant_markers = get_uploaded_markers(state_file)
             cache_batch_data = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
-
-            final_data = finish_chip_tool(chip_name=last_step["tool_name"],data=last_step["data"]["in"], batch_data=cache_batch_data)
+            final_data = finish_chip_tool(chip_name=last_step["tool_name"],data=get_data_from_marker_data_in(state_file, last_step["data"]["in"]), batch_data=cache_batch_data)
 
             save_chip_results(last_step["tool_name"], final_data, last_step["data"]["out"])
             # update output markers
-            for output_marker in last_step["data"]["out"]:
-                output_marker["state"] = "completed"
-                (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
+            print(last_step["data"]["out"])
+            for output_marker_name, data in last_step["data"]["out"].items():
+                print(output_marker_name)
+                current_marker = (next(d for d in relevant_markers if d['name'] == output_marker_name))
+                current_marker["state"] = "completed"
+                (next(d for d in state["nodes"] if d['name'] == current_marker['name'])).update(current_marker)
+            print("Nice")
         else:
+            output_marker = get_uploaded_markers(state_file)[-1]
             # Convert batch output to JSON data
             convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
         
@@ -430,6 +535,7 @@ def complete_running_step(state_file):
             output_marker["state"] = "completed"  # Fix: Update marker to point to extracted file
             (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
 
+        print("completed")
         state["status"] = "completed"
         
         # Save state using DirectoryManager
@@ -449,7 +555,7 @@ def complete_running_step(state_file):
         return "Batch job is still in progress:", counts
 
 
-def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict, test_mode=False):
+def use_llm_tool(state_file, custom_name, tool_name, reference_dict, test_mode=False):
     """Use LLM tool with DirectoryManager and progress tracking"""
     
     # Create snapshot before operation
@@ -461,14 +567,14 @@ def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict, test_
     # 🔍 DEBUG: Print what connections were passed
     print(f"🔍 DEBUG - Parsing step connections:")
     print(f"   tool_name: {tool_name}")
-    print(f"   marker_datafile_dict: {marker_datafile_dict}")
+    print(f"   reference_dict: {reference_dict}")
     print(f"   test_mode: {test_mode}")
     
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    
-    addresses = get_marker_data_from_dict(state_file, marker_datafile_dict, test_mode=test_mode)
-    
+
+    data_content, addresses = get_marker_data_and_addresses(state_file, reference_dict, test_mode=test_mode)
+
     # 🔍 DEBUG: Print what data was resolved
     print(f"🔍 DEBUG - Resolved data:")
     print(f"   addresses: {addresses}")
@@ -485,7 +591,7 @@ def use_llm_tool(state_file, custom_name, tool_name, marker_datafile_dict, test_
     new_step["data"]["in"] = addresses
     
     # Generate LLM batch file
-    generate_llm_tool_batch_file(tool_name, addresses, new_step["batch"]["in"])
+    generate_llm_tool_batch_file(tool_name, data_content, new_step["batch"]["in"])
     
     # Prepare output data
     out = prepare_data(tool_name)["out"]
@@ -529,7 +635,7 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
 
-    addresses = get_marker_data_from_dict(state_file, reference_dict, test_mode=test_mode)
+    data_content, addresses = get_marker_data_and_addresses(state_file, reference_dict, test_mode=test_mode)
     state["status"] = "running"
     
     new_step = empty_step_code.copy()
@@ -546,7 +652,7 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
     
     if tool_name == "finalize":
         # Use DirectoryManager for dataset versioning
-        dataset_result = execute_code_tool(tool_name, addresses)
+        dataset_result = execute_code_tool(tool_name, data_content)
 
         # Create a new dataset version
         version_name = f"finalized_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -569,7 +675,7 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
         data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{output_markers['name']}", "processed")
         
         # Execute and save results
-        result = execute_code_tool(tool_name, addresses)
+        result = execute_code_tool(tool_name, data_content)
         save_code_tool_results(tool_name, result, str(data_output_path))
         
         new_step["data"]["out"] = {output_markers["name"]: str(data_output_path)}
@@ -593,8 +699,8 @@ def use_chip(state_file, custom_name, chip_name, reference_dict, test_mode=False
     
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    
-    addresses = get_marker_data_from_dict(state_file, reference_dict, test_mode=test_mode)
+
+    data_content, addresses = get_marker_data_and_addresses(state_file, reference_dict, test_mode=test_mode)
     state["status"] = "running_chip"
     
     new_step = empty_step_llm.copy()  # Use LLM template since chips use batches
@@ -608,7 +714,7 @@ def use_chip(state_file, custom_name, chip_name, reference_dict, test_mode=False
     new_step["data"]["in"] = addresses
 
     # Start the chip tool
-    output_markers = start_chip_tool(chip_name, addresses, batch_file_path)
+    output_markers = start_chip_tool(chip_name, data_content, batch_file_path)
 
     # Batch management
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
