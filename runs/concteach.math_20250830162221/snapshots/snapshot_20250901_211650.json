@@ -1,6 +1,6 @@
 {
   "name": "concteach.math_20250830162221",
-  "status": "finalized",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -169,12 +169,6 @@
         "json": "data"
       },
       "state": "created"
-    },
-    {
-      "name": "finalized_data",
-      "file_name": "runs/concteach.math_20250830162221/datasets/finalized_20250901_211650",
-      "type": "huggingface_dataset",
-      "state": "created"
     }
   ],
   "state_steps": [
@@ -267,20 +261,6 @@
         },
         "out": {
           "combined_data": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json"
-        }
-      },
-      "status": "completed"
-    },
-    {
-      "name": "Final",
-      "type": "code",
-      "tool_name": "finalize",
-      "data": {
-        "in": {
-          "data": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json"
-        },
-        "out": {
-          "finalized_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/concteach.math_20250830162221/datasets/finalized_20250901_211650"
         }
       },
       "status": "completed"
