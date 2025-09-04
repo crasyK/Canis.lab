@@ -1,0 +1,108 @@
+{
+    "variables": {
+      "teachingTechnique": [
+        "Socratic questioning",
+        "step-by-step explanation",
+        "visual/conceptual analogies",
+        "real-world applications",
+        "error correction and feedback",
+        "scaffolding complex problems",
+        "multiple solution approaches"
+      ],
+      "scienceConcept": {
+        "1stGrade": [
+          "plants",
+          "animals",
+          "weather"
+        ],
+        "2ndGrade": [
+          "basic ecosystems",
+          "simple machines",
+          "states of matter"
+        ],
+        "3rdGrade": [
+          "life cycles",
+          "forces and motion",
+          "habitats"
+        ],
+        "4thGrade": [
+          "solar system",
+          "energy sources",
+          "weather patterns"
+        ],
+        "5thGrade": [
+          "human body systems",
+          "environmental science",
+          "matter and atoms"
+        ],
+        "6thGrade": [
+          "geology",
+          "paleontology",
+          "classification of organisms",
+          "body systems and health"
+        ],
+        "7thGrade": [
+          "cell biology",
+          "genetics",
+          "ecosystem dynamics",
+          "chemical reactions"
+        ],
+        "8thGrade": [
+          "chemistry basics",
+          "energy transfer",
+          "earth science",
+          "forces and motion"
+        ],
+        "9thGrade": [
+          "physics fundamentals",
+          "biology",
+          "introductory chemistry",
+          "environmental science",
+          "basic anatomy"
+        ],
+        "10thGrade": [
+          "genetics",
+          "ecology",
+          "organic chemistry",
+          "geochemistry",
+          "microbiology"
+        ],
+        "11thGrade": [
+          "advanced physics",
+          "molecular biology",
+          "environmental systems",
+          "quantum mechanics",
+          "biochemistry"
+        ],
+        "12thGrade": [
+          "AP biology",
+          "AP chemistry",
+          "AP physics",
+          "advanced environmental science",
+          "statistics in science"
+        ]
+      }
+    },
+    "constants": {
+      "prompt": "Generate 5 different dialogues of 6-8 turns, between a science teacher assistant teaching a {scienceConcept_key} student with these SPECIFIC requirements: {instructions}",
+      "instructions": "The student starts with an inquiry to the teacher assistant about {scienceConcept_value}. Using the {teachingTechnique} approach, the teacher assistant should ask questions to guide the student's understanding without directly providing answers. Dialogues should start with an inquiry and include 30% of the time false responses to questions by the student."
+    },
+    "call": {
+      "custom_id": "__index__",
+      "method": "POST",
+      "url": "/v1/responses",
+      "body": {
+        "model": "gpt-5-nano",
+        "input": [
+          {
+            "role": "system",
+            "content": "You are an educational science teacher assistant designed to assist students with their science questions. Your primary goal is to help students understand concepts without directly giving them answers. Encourage critical thinking and offer supportive feedback to foster a positive learning experience."
+          },
+          {
+            "role": "user",
+            "content": "__prompt__"
+          }
+        ]
+      }
+    }
+  }

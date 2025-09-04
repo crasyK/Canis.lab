@@ -13,7 +13,7 @@ available_chips = {
     },
     "Dialogue Parsing": {
         "data_markers": {
-            "in": {"data":{"json":"data"}},
+            "in": {"data":{"str":"data"}},
             "out": {"parsed_data":{"json":"data"}}
         }
     }

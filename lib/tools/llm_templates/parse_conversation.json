@@ -3,7 +3,7 @@
     "name": "parse",
     "data_markers": {
       "in": {
-        "__data__": {
+        "__conversation__": {
           "str": "data"
         }
       },
@@ -27,7 +27,7 @@
         },
         {
           "role": "user",
-          "content": "__data__"
+          "content": "__conversation__"
         }
       ],
       "text": {

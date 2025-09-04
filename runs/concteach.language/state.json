@@ -1,0 +1,51 @@
+{
+  "name": "concteach.language_20250903001542",
+  "status": "running",
+  "nodes": [
+    {
+      "name": "system_prompt",
+      "file_name": "runs/concteach.language_20250903001542/data/system_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "user_prompt",
+      "file_name": "runs/concteach.language_20250903001542/data/user_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "raw_seed_data",
+      "file_name": "runs/concteach.language_20250903001542/data/raw_seed_data.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "uploaded"
+    }
+  ],
+  "state_steps": [
+    {
+      "name": "seed",
+      "type": "llm",
+      "status": "uploaded",
+      "tool_name": "",
+      "batch": {
+        "in": "runs/concteach.language_20250903001542/batch/seed_batch.jsonl",
+        "upload_id": "batch_68b76c9e411c8190b11992466f4397bf",
+        "out": "runs/concteach.language_20250903001542/batch/seed_results.jsonl"
+      },
+      "data": {
+        "in": {},
+        "out": {
+          "user_prompt": "runs/concteach.language_20250903001542/data/user_prompt.json",
+          "system_prompt": "runs/concteach.language_20250903001542/data/system_prompt.json",
+          "raw_seed_data": "runs/concteach.language_20250903001542/data/raw_seed_data.json"
+        }
+      }
+    }
+  ]
+}

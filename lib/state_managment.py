@@ -509,7 +509,9 @@ def complete_running_step(state_file):
         
         # Download batch results
         download_batch_results(batch_id, last_step["batch"]["out"])
-        
+
+        print("Downloaded Batch Results")
+
         # Use DirectoryManager for data output path
         
         if state["status"] == "running_chip":
@@ -529,6 +531,7 @@ def complete_running_step(state_file):
         else:
             output_marker = get_uploaded_markers(state_file)[-1]
             # Convert batch output to JSON data
+            print("Converting batch output to JSON data...")
             convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
         
             # Update the state file with the new data

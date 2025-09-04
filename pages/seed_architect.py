@@ -8,7 +8,8 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 import re
 import time
-from lib.directory_manager import dir_manager 
+from lib.directory_manager import dir_manager
+from lib.theme_manager import theme_manager 
 
 class StreamlitSeedFileArchitect:
     """Streamlit-based Seed File Architect for interactive seed file creation."""
@@ -739,6 +740,9 @@ def main():
         initial_sidebar_state="expanded"
     )
     
+    # Apply theme CSS
+    theme_manager.apply_theme_css()
+    
     def show_persistent_message():
         """Display persistent messages that survive page reloads"""
         if 'message' in st.session_state and st.session_state.message:
@@ -918,6 +922,8 @@ def main():
                     set_message('success', f"💾 Progress saved to {filename}")
                 except Exception as e:
                     set_message('error', f"❌ Error saving progress: {e}")
+        
+        # Dark mode is always applied - no toggle needed
     
     # Main chat interface
     st.header("💬 Architect Chat")

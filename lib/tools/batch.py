@@ -58,16 +58,67 @@ def convert_batch_in_to_json_data(batch_file, input_sys_file, input_user_file):
     with open(input_user_file, 'w') as f:
         json.dump(input_data_B, f)
 
+
 def convert_batch_out_to_json_data(batch_file, output_file):
+    """FIXED: Searches through output array to find message type instead of using fixed index"""
     with open(batch_file, 'r') as f:
         batch = [json.loads(line) for line in f.readlines()]
-            
+    
     output_data = {}
+    failed_extractions = []
+    
     for b in batch:
-        output_data[b["custom_id"]] = b["response"]["body"]["output"][1]["content"][0]["text"]
+        try:
+            custom_id = b["custom_id"]
+            
+            # Handle the GPT-5 response structure
+            if "response" in b and "body" in b["response"]:
+                response_body = b["response"]["body"]
+                
+                # Check if there's an output array
+                if "output" in response_body and isinstance(response_body["output"], list):
+                    # FIXED: Search through ALL output items to find the message type
+                    text_content = None
+                    
+                    for output_item in response_body["output"]:
+                        if (output_item.get("type") == "message" and 
+                            "content" in output_item and 
+                            isinstance(output_item["content"], list) and
+                            len(output_item["content"]) > 0):
+                            
+                            content_item = output_item["content"][0]
+                            if content_item.get("type") == "output_text":
+                                text_content = content_item.get("text", "")
+                                break
+                    
+                    if text_content is not None:
+                        output_data[custom_id] = text_content
+                    else:
+                        failed_extractions.append(f"No message content found for custom_id: {custom_id}")
+                        
+                # Fallback for older formats
+                else:
+                    failed_extractions.append(f"No output array found for custom_id: {custom_id}")
+            else:
+                failed_extractions.append(f"Unexpected structure for custom_id: {custom_id}")
+                
+        except Exception as e:
+            failed_extractions.append(f"Error processing custom_id {b.get('custom_id', 'unknown')}: {str(e)}")
+    
+    # Print any failed extractions for debugging
+    if failed_extractions:
+        print("⚠️ Failed extractions:")
+        for failure in failed_extractions[:5]:  # Show first 5 failures
+            print(f"  - {failure}")
+        if len(failed_extractions) > 5:
+            print(f"  ... and {len(failed_extractions) - 5} more failures")
+    
+    print(f"✅ Successfully extracted {len(output_data)} responses out of {len(batch)} total")
     
     if output_file == None:
-       return output_data
+        return output_data
     else:
         with open(output_file, 'w') as f:
-            json.dump(output_data, f)
+            json.dump(output_data, f, indent=2)
+        return output_data
+

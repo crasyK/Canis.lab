@@ -16,11 +16,13 @@ from lib.tools.code import get_available_code_tools, prepare_tool_use
 from lib.tools.chip import get_available_chips, prepare_chip_use
 from lib.tools.global_func import get_type, check_data_type, has_connection
 from lib.directory_manager import dir_manager
-import json
-import os
+from lib.theme_manager import theme_manager
 
 # Page config
 st.set_page_config(page_title="Workflow Editor", layout="wide")
+
+# Apply theme CSS
+theme_manager.apply_theme_css()
 
 # New UX Classes
 class SmartStepBuilder:
@@ -1910,9 +1912,11 @@ with st.sidebar:
                     st.rerun()
         else:
             st.button("▶️ No Pending Steps", disabled=True, key="sidebar_run_steps_disabled", use_container_width=True)
+    
+    # Dark mode is always applied - no toggle needed
 
 # Header
-col1, col2 = st.columns([3, 1])
+col1, col2, col3 = st.columns([3, 1, 1])
 with col1:
     st.title("🔄 Workflow Editor")
     show_persistent_message()
@@ -1923,6 +1927,10 @@ with col2:
         st.success(f"📁 {st.session_state.current_workflow}")
     else:
         st.info("No workflow loaded")
+
+with col3:
+    # Dark mode is always applied - no toggle needed
+    pass
 
 # CREATE NEW WORKFLOW DIALOG
 if st.session_state.get('show_create_workflow_dialog', False):
@@ -2026,7 +2034,8 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             enable_pane_menu=False,
             get_edge_on_click=True,
             get_node_on_click=True,
-            show_minimap=True,
+            show_minimap=False,
+            show_controls=False,
             hide_watermark=True,
             allow_new_edges=True,
             min_zoom=0.1,

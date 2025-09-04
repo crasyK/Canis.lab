@@ -68,48 +68,50 @@ class step(object):
         step.steps_arr.append(self.arr)
 
     def get_parent_style(self):
-        """Get styling for parent node based on type and status"""
-        # Check if this is a test step
+        """Get styling for parent node based on type and status with dark theme"""
+        from .theme_manager import theme_manager
+        colors = theme_manager.get_theme_colors()
+        
+        # Check if this is a test step or chip step
         is_test_step = self.step_name.startswith('test_')
-
         is_chip_step = self.step_type == 'chip'
         
-        # Border and background styling based on test status
+        # Use theme-aware colors
         if is_chip_step:
-            border_color = '#9C27B0'  # Purple for chip steps
-            backgroundColor = '#F3E5F5' if self.status == 'completed' else '#E1BEE7'
+            border_color = colors['chip_node']
+            backgroundColor = colors['node_background']
             border_style = 'solid'
             border_width = '3px'
         elif is_test_step and self.status == 'completed':
-            border_color = '#FF8C00'  # Orange for test steps
-            backgroundColor = '#FFF8DC'  # Light cream background
+            border_color = colors['warning']
+            backgroundColor = colors['test_completed']
             border_style = 'dashed'
             border_width = '3px'
         elif is_test_step and self.status == 'failed':
-            border_color = '#FF4444'  # Red for failed tests
-            backgroundColor = '#FFE4E1'  # Light red background
+            border_color = colors['error']
+            backgroundColor = colors['test_failed']
             border_style = 'dashed'
             border_width = '3px'
         elif is_test_step:
-            border_color = '#FFA500'  # Orange for pending test steps
-            backgroundColor = '#FFFAF0'  # Very light orange
+            border_color = colors['warning']
+            backgroundColor = colors['test_pending']
             border_style = 'dashed'
             border_width = '2px'
         else:
             # Regular step styling
-            border_color = '#0066cc' if self.step_type == 'llm' else '#ff8c00' # blue for llm, orange for code
-            backgroundColor = '#808080' if self.status == 'uploaded' else 'white' # grey for running, white for completed
+            border_color = colors['llm_node'] if self.step_type == 'llm' else colors['code_node']
+            backgroundColor = colors['secondary_background'] if self.status == 'uploaded' else colors['node_background']
             border_style = 'solid'
             border_width = '2px'
         
         return {
-            'color': 'black',
+            'color': colors['node_text'],
             'backgroundColor': backgroundColor,
             'border': f'{border_width} {border_style} {border_color}',
             'borderRadius': '8px',
             'width': '200px',
             'height': f'{self.markers_count_column*50+self.markers_count_column*10+40+10}px',
-            'boxShadow': '2px 2px 4px rgba(0,0,0,0.1)' if is_chip_step else 'none'
+            'boxShadow': f'2px 2px 4px {colors["border"]}' if is_test_step or is_chip_step else 'none'
         }
 
     def is_single_data(self, file_path):
@@ -120,9 +122,12 @@ class step(object):
         return not (file_path.startswith('runs/') or file_path.endswith(('.json', '.jsonl', '.txt', '.csv')))
 
     def get_child_style(self, marker_name, file_path, is_output=False):
-        """Get styling for child nodes based on data type from nodes_info"""
+        """Get styling for child nodes based on data type with dark theme"""
+        from .theme_manager import theme_manager
+        colors = theme_manager.get_theme_colors()
+        
         style = {
-            'color': 'black',
+            'color': colors['node_text'],
             'width': '100px',
             'height': '50px'
         }
@@ -131,7 +136,7 @@ class step(object):
         if is_output and self.status == 'completed':
             style.update({
                 'cursor': 'pointer',
-                'boxShadow': '0 0 8px rgba(0,150,255,0.6)',
+                'boxShadow': f'0 0 8px {colors["accent_secondary"]}80',
                 'borderRadius': '4px',
                 'transition': 'all 0.3s ease'
             })
@@ -139,41 +144,41 @@ class step(object):
         # Check if it's a single data block first
         node_info = self.find_node_by_file_path(file_path)
         if node_info and node_info.get('state') == 'single_data':
-            # For single data blocks, use white border
-            style['border'] = '2px solid white'
+            # For single data blocks, use theme-aware border
+            style['border'] = f'2px solid {colors["single_data"]}'
             
             # Get data type from node type info
             data_type = list(node_info.get('type', {}).keys())[0] if node_info.get('type') else 'string'
             
             if data_type == 'json':
-                style['backgroundColor'] = 'yellow'
+                style['backgroundColor'] = colors['json_data']
             elif data_type == 'string':
-                style['backgroundColor'] = 'green'
+                style['backgroundColor'] = colors['string_data']
             elif data_type == 'list':
-                style['backgroundColor'] = 'purple'
+                style['backgroundColor'] = colors['list_data']
             elif data_type == 'integer':
-                style['backgroundColor'] = 'lightblue'
+                style['backgroundColor'] = colors['integer_data']
             else:
-                style['backgroundColor'] = 'lightgray'
+                style['backgroundColor'] = colors['file_data']
             
             return style
         
         # Check if it's regular single data
         if self.is_single_data(file_path):
-            # For single data, use white border and determine background by content type
-            style['border'] = '2px solid white'
+            # For single data, use theme-aware border and background
+            style['border'] = f'2px solid {colors["single_data"]}'
             
             # Try to determine type from content for single data
             if isinstance(file_path, str):
                 file_path_lower = file_path.lower()
                 if any(json_indicator in file_path_lower for json_indicator in ['{', '}', '"role"', '"content"']):
-                    style['backgroundColor'] = 'yellow'  # JSON-like content
+                    style['backgroundColor'] = colors['json_data']  # JSON-like content
                 elif file_path_lower in ['true', 'false'] or file_path.isdigit():
-                    style['backgroundColor'] = 'green'  # String/boolean/number
+                    style['backgroundColor'] = colors['string_data']  # String/boolean/number
                 else:
-                    style['backgroundColor'] = 'green'  # Default to string for single data
+                    style['backgroundColor'] = colors['string_data']  # Default to string for single data
             else:
-                style['backgroundColor'] = 'green'  # Default for single data
+                style['backgroundColor'] = colors['string_data']  # Default for single data
             
             return style
         
@@ -182,34 +187,34 @@ class step(object):
         
         if not node_info:
             # Only grey out if it's not single data and node not found
-            style['backgroundColor'] = 'lightgray'
-            style['border'] = '2px solid black'
+            style['backgroundColor'] = colors['file_data']
+            style['border'] = f'2px solid {colors["node_text"]}'
             return style
         
         # Check if it's huggingface_dataset
         if node_info.get('type') == 'huggingface_dataset':
-            style['backgroundColor'] = 'white'
-            style['border'] = '2px solid red'
+            style['backgroundColor'] = colors['huggingface_data']
+            style['border'] = f'2px solid {colors["error"]}'
             return style
         
         # Get type information
         type_info = node_info.get('type', {})
         
-        # Set background color based on data type
+        # Set background color based on data type using theme colors
         if isinstance(type_info, dict):
             if 'json' in type_info:
-                style['backgroundColor'] = 'yellow'
+                style['backgroundColor'] = colors['json_data']
             elif 'str' in type_info:
-                style['backgroundColor'] = 'green'
+                style['backgroundColor'] = colors['string_data']
             elif 'list' in type_info:
-                style['backgroundColor'] = 'purple'
+                style['backgroundColor'] = colors['list_data']
             else:
-                style['backgroundColor'] = 'lightgray'
+                style['backgroundColor'] = colors['file_data']
         else:
-            style['backgroundColor'] = 'lightgray'
+            style['backgroundColor'] = colors['file_data']
         
-        # Set border color (black for file-based data)
-        style['border'] = '2px solid black'
+        # Set border color using theme colors
+        style['border'] = f'2px solid {colors["node_text"]}'
         
         return style
 
