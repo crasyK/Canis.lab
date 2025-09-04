@@ -2,7 +2,7 @@ import os
 import datetime
 import json
 from datasets import Dataset
-from .tools.batch import upload_batch, check_batch_job, download_batch_results, convert_batch_in_to_json_data, convert_batch_out_to_json_data
+from .tools.batch import cancel_batch_job, upload_batch, check_batch_job, download_batch_results, convert_batch_in_to_json_data, convert_batch_out_to_json_data
 from .tools.seed import generate_seed_batch_file
 from .tools.llm import generate_llm_tool_batch_file, prepare_data
 from .tools.code import execute_code_tool, save_code_tool_results, prepare_tool_use
@@ -500,7 +500,7 @@ def complete_running_step(state_file):
     status, counts = check_batch_job(batch_id)
 
     if status == "completed":
-        last_step["status"] = "completed"
+        
         print("Batch job completed successfully")
 
         # Use DirectoryManager for batch results path
@@ -516,27 +516,24 @@ def complete_running_step(state_file):
         
         if state["status"] == "running_chip":
             relevant_markers = get_uploaded_markers(state_file)
-            cache_batch_data = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
+            cache_batch_data, status = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
             final_data = finish_chip_tool(chip_name=last_step["tool_name"],data=get_data_from_marker_data_in(state_file, last_step["data"]["in"]), batch_data=cache_batch_data)
-
             save_chip_results(last_step["tool_name"], final_data, last_step["data"]["out"])
             # update output markers
-            print(last_step["data"]["out"])
             for output_marker_name, data in last_step["data"]["out"].items():
-                print(output_marker_name)
                 current_marker = (next(d for d in relevant_markers if d['name'] == output_marker_name))
-                current_marker["state"] = "completed"
+                current_marker["state"] = status
                 (next(d for d in state["nodes"] if d['name'] == current_marker['name'])).update(current_marker)
-            print("Nice")
+            last_step["status"] = status
         else:
             output_marker = get_uploaded_markers(state_file)[-1]
             # Convert batch output to JSON data
-            print("Converting batch output to JSON data...")
-            convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
-        
+            data, status = convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
+
             # Update the state file with the new data
-            output_marker["state"] = "completed"  # Fix: Update marker to point to extracted file
+            output_marker["state"] = status  # Fix: Update marker to point to extracted file
             (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
+            last_step["status"] = status
 
         print("completed")
         state["status"] = "completed"
@@ -808,410 +805,85 @@ def export_workflow_data(workflow_name, export_path):
     print(f"Exported workflow '{workflow_name}' to: {export_path / workflow_name}")
     return str(export_path / workflow_name)
 
-def delete_step_and_data(state_file, step_index_or_name, delete_files=True, create_backup=True):
-    """
-    Delete a step and all its associated data including markers and files
-    
-    Args:
-        state_file: Path to the workflow state file
-        step_index_or_name: Either the step index (int) or step name (str)
-        delete_files: Whether to delete associated files from disk
-        create_backup: Whether to create a backup before deletion
-    
-    Returns:
-        dict: Summary of what was deleted
-    """
-    # Load current state
-    state = dir_manager.load_json(state_file)
-    workflow_name = state["name"]
-    
-    # Create backup if requested
-    if create_backup:
-        snapshot_path = create_workflow_snapshot(state_file)
-        print(f"✅ Created backup: {snapshot_path}")
-    
-    # Find the step to delete
-    step_to_delete = None
-    step_index = None
-    
-    if isinstance(step_index_or_name, int):
-        if 0 <= step_index_or_name < len(state["state_steps"]):
-            step_index = step_index_or_name
-            step_to_delete = state["state_steps"][step_index]
-    else:
-        # Find by name
-        for i, step in enumerate(state["state_steps"]):
-            if step.get("name") == step_index_or_name:
-                step_index = i
-                step_to_delete = step
-                break
-    
-    if not step_to_delete:
-        raise ValueError(f"Step not found: {step_index_or_name}")
-    
-    deletion_summary = {
-        "step_name": step_to_delete.get("name", f"Step_{step_index}"),
-        "step_type": step_to_delete.get("type", "unknown"),
-        "files_deleted": [],
-        "markers_removed": [],
-        "batch_files_deleted": [],
-        "data_files_deleted": [],
-        "dataset_versions_deleted": []
-    }
-    
-    # 1. Delete associated files if requested
-    if delete_files:
-        deletion_info = _delete_step_files(step_to_delete, workflow_name)
-        deletion_summary.update(deletion_info)
-    
-    # 2. Remove markers associated with this step
-    markers_to_remove = _find_step_markers(state, step_to_delete)
-    for marker in markers_to_remove:
-        state["nodes"].remove(marker)
-        deletion_summary["markers_removed"].append(marker["name"])
-    
-    # 3. Update references in other steps (critical for workflow integrity)
-    _update_step_references(state, step_to_delete, deletion_summary)
-    
-    # 4. Remove the step from state_steps
-    del state["state_steps"][step_index]
-    
-    # 5. Update workflow status if needed
-    _update_workflow_status_after_deletion(state)
-    
-    # 6. Save updated state
-    dir_manager.save_json(state_file, state)
-    
-    print(f"✅ Successfully deleted step: {deletion_summary['step_name']}")
-    return deletion_summary
-
-def _delete_step_files(step_data, workflow_name):
-    """Delete all files associated with a step"""
-    deletion_info = {
-        "files_deleted": [],
-        "batch_files_deleted": [],
-        "data_files_deleted": [],
-        "dataset_versions_deleted": []
-    }
-    
-    # Delete batch files
-    if "batch" in step_data:
-        for batch_key in ["in", "out"]:
-            if batch_key in step_data["batch"] and step_data["batch"][batch_key]:
-                file_path = Path(step_data["batch"][batch_key])
-                if file_path.exists():
-                    file_path.unlink()
-                    deletion_info["batch_files_deleted"].append(str(file_path))
-                    print(f"  🗑️ Deleted batch file: {file_path}")
-    
-    # Delete data files
-    if "data" in step_data:
-        for io_type in ["in", "out"]:
-            if io_type in step_data["data"]:
-                for marker_name, file_path in step_data["data"][io_type].items():
-                    if isinstance(file_path, str):
-                        resolved_path = Path(file_path)
-                        if resolved_path.exists():
-                            if resolved_path.is_file():
-                                resolved_path.unlink()
-                                deletion_info["data_files_deleted"].append(str(resolved_path))
-                                print(f"  🗑️ Deleted data file: {resolved_path}")
-                            elif resolved_path.is_dir():
-                                # Handle dataset directories
-                                import shutil
-                                shutil.rmtree(resolved_path)
-                                deletion_info["dataset_versions_deleted"].append(str(resolved_path))
-                                print(f"  🗑️ Deleted dataset directory: {resolved_path}")
-    
-    deletion_info["files_deleted"] = (
-        deletion_info["batch_files_deleted"] + 
-        deletion_info["data_files_deleted"] + 
-        deletion_info["dataset_versions_deleted"]
-    )
-    
-    return deletion_info
-
-def _find_step_markers(state, step_data):
-    """Find all markers associated with a step"""
-    markers_to_remove = []
-    
-    if "data" in step_data:
-        for io_type in ["in", "out"]:
-            if io_type in step_data["data"]:
-                for marker_name, file_path in step_data["data"][io_type].items():
-                    # Find corresponding marker in nodes
-                    for marker in state["nodes"]:
-                        if (marker["name"] == marker_name or 
-                            marker.get("file_name") == file_path):
-                            if marker not in markers_to_remove:  # Avoid duplicates
-                                markers_to_remove.append(marker)
-    
-    return markers_to_remove
-
-def _update_step_references(state, deleted_step, deletion_summary):
-    """Update references to deleted step outputs in other steps"""
-    deleted_outputs = deleted_step.get("data", {}).get("out", {})
-    
-    for step in state["state_steps"]:
-        if step == deleted_step:
-            continue
-            
-        step_inputs = step.get("data", {}).get("in", {})
-        updated_inputs = {}
-        references_broken = []
-        
-        for input_key, input_value in step_inputs.items():
-            # Check if this input references a deleted output
-            reference_broken = False
-            for deleted_output_key, deleted_output_path in deleted_outputs.items():
-                if input_value == deleted_output_path:
-                    reference_broken = True
-                    references_broken.append(f"{input_key} -> {deleted_output_key}")
-                    break
-            
-            if not reference_broken:
-                updated_inputs[input_key] = input_value
-        
-        if references_broken:
-            step["data"]["in"] = updated_inputs
-            step["status"] = "broken_references"
-            deletion_summary.setdefault("broken_references", []).extend(references_broken)
-            print(f"  ⚠️ Broken references in step '{step.get('name', 'Unknown')}': {references_broken}")
-
-def _update_workflow_status_after_deletion(state):
-    """Update workflow status after step deletion"""
-    if not state["state_steps"]:
-        state["status"] = "empty"
-    elif any(step.get("status") == "broken_references" for step in state["state_steps"]):
-        state["status"] = "broken_references"
-    elif any(step.get("status") in ["running", "uploaded"] for step in state["state_steps"]):
-        state["status"] = "running"
-    else:
-        state["status"] = "modified"
-
 def get_deletable_steps(state_file):
-    """Get list of steps that can be safely deleted"""
+    """Returns a list of names of completed steps."""
     state = dir_manager.load_json(state_file)
-    deletable_steps = []
-    
-    for i, step in enumerate(state["state_steps"]):
-        # Check if step is currently running
-        is_running = step.get("status") in ["uploaded", "in_progress", "running"]
-        
-        # Count dependencies (how many other steps depend on this step's outputs)
-        dependencies = count_step_dependencies(state, step)
-        
-        deletable_steps.append({
-            "index": i,
-            "name": step.get("name", f"Step_{i}"),
-            "type": step.get("type", "unknown"),
-            "status": step.get("status", "unknown"),
-            "is_running": is_running,
-            "dependencies": dependencies,
-            "can_delete": not is_running,
-            "warning": "Step is currently running" if is_running else 
-                      f"Will break {dependencies} dependent steps" if dependencies > 0 else None
-        })
-    
-    return deletable_steps
+    completed_steps = []
+    for step in state.get('state_steps', []):
+        if step.get('status') == 'completed' or step.get('status') == 'failed' or step.get('status') == 'corrupted' or step.get('status') == 'cancelled':
+            completed_steps.append(step.get('name'))
+    return completed_steps
 
-def count_step_dependencies(state, target_step):
-    """Count how many other steps depend on this step's outputs"""
-    target_outputs = target_step.get("data", {}).get("out", {})
-    dependency_count = 0
+def get_uploaded_steps(state_file):
+    """Returns a list of names of steps that are uploaded or in progress."""
+    state = dir_manager.load_json(state_file)
+    uploaded_steps = []
+    for step in state.get('state_steps', []):
+        if step.get('status') == 'uploaded':
+            uploaded_steps.append(step.get('name'))
+    return uploaded_steps
+
+def delete_step(state_file, step_name_to_delete):
+    """Deletes a completed step from the workflow state and cleans up its output markers."""
+    state = dir_manager.load_json(state_file)
     
-    for step in state["state_steps"]:
-        if step == target_step:
-            continue
+    step_to_delete = None
+    for step in state['state_steps']:
+        if step['name'] == step_name_to_delete:
+            step_to_delete = step
+            break
             
-        step_inputs = step.get("data", {}).get("in", {}).values()
-        for target_output_path in target_outputs.values():
-            if target_output_path in step_inputs:
-                dependency_count += 1
-                break
-    
-    return dependency_count
-
-def delete_multiple_steps(state_file, step_identifiers, delete_files=True, create_backup=True):
-    """Delete multiple steps in the correct order"""
-    state = dir_manager.load_json(state_file)
-    
-    # Sort by reverse index to avoid index shifting issues
-    steps_to_delete = []
-    for identifier in step_identifiers:
-        if isinstance(identifier, int):
-            if 0 <= identifier < len(state["state_steps"]):
-                steps_to_delete.append((identifier, state["state_steps"][identifier]))
-        else:
-            for i, step in enumerate(state["state_steps"]):
-                if step.get("name") == identifier:
-                    steps_to_delete.append((i, step))
-                    break
-    
-    # Sort by index in reverse order
-    steps_to_delete.sort(key=lambda x: x[0], reverse=True)
-    
-    deletion_summaries = []
-    for index, step in steps_to_delete:
-        summary = delete_step_and_data(
-            state_file, index, 
-            delete_files=delete_files, 
-            create_backup=create_backup and len(deletion_summaries) == 0  # Only backup once
-        )
-        deletion_summaries.append(summary)
-    
-    return deletion_summaries
-
-def clear_all_steps(state_file, delete_files=True, create_backup=True):
-    """Clear all steps from a workflow"""
-    state = dir_manager.load_json(state_file)
-    workflow_name = state["name"]
-    
-    if create_backup:
-        snapshot_path = create_workflow_snapshot(state_file) 
-        print(f"✅ Created backup before clearing: {snapshot_path}")
-    
-    # Delete all files if requested
-    if delete_files:
-        workflow_path = dir_manager.get_workflow_path(workflow_name)
-        import shutil
+    if not step_to_delete:
+        raise ValueError(f"Step '{step_name_to_delete}' not found.")
         
-        # Clear directories but keep structure
-        for subdir in ["batch", "data", "datasets"]:
-            subdir_path = workflow_path / subdir
-            if subdir_path.exists():
-                shutil.rmtree(subdir_path)
-                subdir_path.mkdir()
-                print(f"  🗑️ Cleared directory: {subdir_path}")
+    if step_to_delete.get('status') == 'uploaded' or step_to_delete.get('status') == 'in_progress':
+        raise ValueError(f"Cannot delete step '{step_name_to_delete}' as it is not completed. Its status is '{step_to_delete.get('status')}'.")
+
+    # Get the output markers of the step to be deleted
+    output_markers_to_remove = []
+    if 'data' in step_to_delete and 'out' in step_to_delete['data']:
+        output_markers_to_remove = list(step_to_delete['data']['out'].keys())
+
+    # Remove the step from state_steps
+    state['state_steps'] = [step for step in state['state_steps'] if step['name'] != step_name_to_delete]
     
-    # Reset state
-    state["state_steps"] = []
-    state["nodes"] = []
-    state["status"] = "empty"
-    
-    # Save updated state
+    # Remove the output markers of the deleted step from the nodes list
+    if output_markers_to_remove:
+        state['nodes'] = [node for node in state['nodes'] if node['name'] not in output_markers_to_remove]
+        
+    # Save the updated state
     dir_manager.save_json(state_file, state)
     
-    print(f"✅ Cleared all steps from workflow: {workflow_name}")
-    return {"workflow_name": workflow_name, "status": "cleared"}
+    return f"Step '{step_name_to_delete}' deleted successfully."
 
-def safe_delete_with_confirmation(state_file, step_identifier, interactive=True):
-    """Safely delete a step with confirmation and dependency checking"""
+def cancel_step_batch(state_file, selected_step):
+    """Cancel the batch job of a the selected step. raises an error if the step is not uploaded."""
     state = dir_manager.load_json(state_file)
     
-    # Find step
-    step_to_delete = None
-    if isinstance(step_identifier, int):
-        if 0 <= step_identifier < len(state["state_steps"]):
-            step_to_delete = state["state_steps"][step_identifier]
-    else:
-        for step in state["state_steps"]:
-            if step.get("name") == step_identifier:
-                step_to_delete = step
-                break
-    
-    if not step_to_delete:
-        raise ValueError(f"Step not found: {step_identifier}")
-    
-    # Check dependencies
-    dependencies = count_step_dependencies(state, step_to_delete)
-    
-    # Check if running
-    is_running = step_to_delete.get("status") in ["uploaded", "in_progress", "running"]
-    
-    if is_running:
-        raise ValueError(f"Cannot delete running step: {step_to_delete.get('name')}")
-    
-    # Show confirmation if interactive
-    if interactive:
-        print(f"⚠️ About to delete step: {step_to_delete.get('name')}")
-        print(f"   Type: {step_to_delete.get('type')}")
-        print(f"   Status: {step_to_delete.get('status')}")
-        print(f"   Dependencies: {dependencies} other steps depend on this")
+    step_to_cancel = None
+    for step in state['state_steps']:
+        if step['name'] == selected_step:
+            step_to_cancel = step
+            break
+            
+    if not step_to_cancel:
+        raise ValueError(f"Step '{selected_step}' not found.")
         
-        if dependencies > 0:
-            print("   WARNING: This will break dependent steps!")
-        
-        # In a real implementation, you'd use input() or a UI confirmation
-        # For now, we'll just proceed with deletion
-        print("   Proceeding with deletion...")
-    
-    # Proceed with deletion
-    return delete_step_and_data(state_file, step_identifier, delete_files=True, create_backup=True)
+    if step_to_cancel.get('status') != 'uploaded' and step_to_cancel.get('status') != 'in_progress':
+        raise ValueError(f"Cannot cancel step '{selected_step}' as it is not in progress or uploaded. Its status is '{step_to_cancel.get('status')}'.")
 
-def recover_from_backup(workflow_name, snapshot_name=None):
-    """Recover workflow from a backup snapshot"""
-    try:
-        restored_state_file = rollback_workflow_state(workflow_name, snapshot_name)
-        print(f"✅ Successfully recovered workflow from backup")
-        return restored_state_file
-    except Exception as e:
-        print(f"❌ Recovery failed: {e}")
-        raise
+    batch_id = step_to_cancel.get('batch', {}).get('upload_id')
+    if not batch_id:
+        raise ValueError(f"No batch ID found for step '{selected_step}'.")
 
-def get_step_deletion_preview(state_file, step_identifier):
-    """Preview what would be deleted without actually deleting"""
-    state = dir_manager.load_json(state_file)
+    # Call the cancel_batch_job function
+    cancel_batch_job(batch_id)
     
-    # Find step
-    step_to_delete = None
-    step_index = None
-    if isinstance(step_identifier, int):
-        if 0 <= step_identifier < len(state["state_steps"]):
-            step_index = step_identifier
-            step_to_delete = state["state_steps"][step_index]
-    else:
-        for i, step in enumerate(state["state_steps"]):
-            if step.get("name") == step_identifier:
-                step_index = i
-                step_to_delete = step
-                break
+    # Update the step and workflow status
+    step_to_cancel['status'] = 'cancelled'
+    state['status'] = 'completed'
     
-    if not step_to_delete:
-        raise ValueError(f"Step not found: {step_identifier}")
+    # Save the updated state
+    dir_manager.save_json(state_file, state)
     
-    # Get preview info
-    preview = {
-        "step_name": step_to_delete.get("name", f"Step_{step_index}"),
-        "step_type": step_to_delete.get("type", "unknown"),
-        "step_status": step_to_delete.get("status", "unknown"),
-        "can_delete": step_to_delete.get("status") not in ["uploaded", "in_progress", "running"],
-        "dependencies": count_step_dependencies(state, step_to_delete),
-        "markers_to_remove": [],
-        "files_to_delete": [],
-        "broken_references": []
-    }
-    
-    # Find markers
-    markers_to_remove = _find_step_markers(state, step_to_delete)
-    preview["markers_to_remove"] = [marker["name"] for marker in markers_to_remove]
-    
-    # Find files
-    if "batch" in step_to_delete:
-        for batch_key in ["in", "out"]:
-            if batch_key in step_to_delete["batch"] and step_to_delete["batch"][batch_key]:
-                file_path = Path(step_to_delete["batch"][batch_key])
-                if file_path.exists():
-                    preview["files_to_delete"].append(str(file_path))
-    
-    if "data" in step_to_delete:
-        for io_type in ["in", "out"]:
-            if io_type in step_to_delete["data"]:
-                for marker_name, file_path in step_to_delete["data"][io_type].items():
-                    if isinstance(file_path, str):
-                        resolved_path = Path(file_path)
-                        if resolved_path.exists():
-                            preview["files_to_delete"].append(str(resolved_path))
-    
-    # Find broken references
-    deleted_outputs = step_to_delete.get("data", {}).get("out", {})
-    for step in state["state_steps"]:
-        if step == step_to_delete:
-            continue
-        step_inputs = step.get("data", {}).get("in", {})
-        for input_key, input_value in step_inputs.items():
-            for deleted_output_key, deleted_output_path in deleted_outputs.items():
-                if input_value == deleted_output_path:
-                    preview["broken_references"].append(f"{step.get('name', 'Unknown')}.{input_key} -> {deleted_output_key}")
-    
-    return preview
+    return f"Batch job for step '{selected_step}' cancelled successfully."

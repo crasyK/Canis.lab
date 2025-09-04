@@ -4,9 +4,6 @@ import os
 import time
 from lib.state_managment import complete_running_step
 from lib.directory_manager import dir_manager
-from lib.theme_manager import theme_manager
-
-# At the very beginning of app.py, modify the page config:
 
 st.set_page_config(
     page_title="Workflow Dashboard", 
@@ -18,34 +15,6 @@ st.set_page_config(
         'About': None
     }
 )
-# Right after st.set_page_config(), add this immediate CSS:
-st.markdown("""
-<style>
-.stApp > header {
-    display: none !important;
-}
-header[data-testid="stHeader"] {
-    display: none !important;
-}
-div[data-testid="stDecoration"] {
-    display: none !important;
-}
-#MainMenu {
-    visibility: hidden !important;
-}
-footer {
-    visibility: hidden !important;
-}
-.stApp > div:first-child {
-    padding-top: 0px !important;
-    margin-top: 0px !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# Apply theme CSS
-theme_manager.apply_theme_css()
 
 def show_persistent_message():
     """Display persistent messages that survive page reloads"""

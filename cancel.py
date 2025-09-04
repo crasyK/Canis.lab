@@ -5,5 +5,6 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
-a =client.batches.cancel("batch_68b7622332a88190887283e9deaccd53")
+batch_id = "batch_68b76c9e411c8190b11992466f4397bf"
+a = batch_job = client.batches.retrieve(batch_id)
 print(a)

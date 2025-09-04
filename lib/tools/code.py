@@ -112,9 +112,45 @@ def combine(data_A, data_B):
 
 def bind(structured_content, key_name):
     data = []
+    skipped_entries = []
+    
     for key, value in structured_content.items():
-        json_data = json.loads(value)
-        data.extend(json_data[key_name])
+        try:
+            # First, try to parse the JSON string
+            json_data = json.loads(value)
+            
+            # Then, try to access the specified key
+            if key_name in json_data:
+                # Check if the value is a list (for extend) or single item (for append)
+                if isinstance(json_data[key_name], list):
+                    data.extend(json_data[key_name])
+                else:
+                    data.append(json_data[key_name])
+            else:
+                skipped_entries.append(f"Key '{key}': Missing '{key_name}' field in JSON")
+                
+        except json.JSONDecodeError as e:
+            # Handle invalid JSON
+            skipped_entries.append(f"Key '{key}': Invalid JSON - {str(e)}")
+            
+        except TypeError as e:
+            # Handle cases where value is not a string (e.g., None, int, etc.)
+            skipped_entries.append(f"Key '{key}': Value is not a valid JSON string - {str(e)}")
+            
+        except Exception as e:
+            # Catch any other unexpected errors
+            skipped_entries.append(f"Key '{key}': Unexpected error - {str(e)}")
+    
+    # Optional: Print summary of skipped entries
+    if skipped_entries:
+        print(f"⚠️ Skipped {len(skipped_entries)} entries:")
+        for skip_msg in skipped_entries[:5]:  # Show first 5 skipped entries
+            print(f"  - {skip_msg}")
+        if len(skipped_entries) > 5:
+            print(f"  ... and {len(skipped_entries) - 5} more")
+    
+    print(f"✅ Successfully processed {len(structured_content) - len(skipped_entries)} out of {len(structured_content)} entries")
+    
     return data
 
 def finalize(data):

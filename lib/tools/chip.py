@@ -45,7 +45,7 @@ def start_dialogue_parsing_chip(data: dict, batch_file_location: str):
     return get_available_chips()["Dialogue Parsing"]["data_markers"]["out"]
 
 def finish_dialogue_parsing_chip(data: dict, batch_data: dict):
-    unwind_data = execute_code_tool("bind", {"structured_content": batch_data, "key_name": "dialogue"})
+    unwind_data = save_code_tool_results("unwind",execute_code_tool("bind", {"structured_content": batch_data, "key_name": "dialogue"}), None)
     return {"parsed_data": unwind_data}
 
 REGISTRY: dict[str, Callable[..., Any]] = {

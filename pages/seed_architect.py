@@ -9,7 +9,6 @@ from typing import Dict, Any, List, Optional
 import re
 import time
 from lib.directory_manager import dir_manager
-from lib.theme_manager import theme_manager 
 
 class StreamlitSeedFileArchitect:
     """Streamlit-based Seed File Architect for interactive seed file creation."""
@@ -739,9 +738,6 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded"
     )
-    
-    # Apply theme CSS
-    theme_manager.apply_theme_css()
     
     def show_persistent_message():
         """Display persistent messages that survive page reloads"""

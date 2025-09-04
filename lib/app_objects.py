@@ -1,10 +1,74 @@
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 import json
 import os
+from typing import Dict, Any
+
+
+class ThemeManager:
+    """Dark mode theme management for the Canis.lab application"""
+    
+    def __init__(self):
+        self.colors = self._get_dark_theme()
+    
+    def _get_dark_theme(self) -> Dict[str, Any]:
+        return {
+            'name': 'dark',
+            'background': '#0E1117',
+            'secondary_background': '#262730',
+            'text_primary': '#FAFAFA',
+            'text_secondary': '#A3A8B8',
+            'border': '#3D4551',
+            'accent_primary': '#FF6B6B',
+            'accent_secondary': '#4FC3F7',
+            'success': '#00E1A8',
+            'warning': '#FFB347',
+            'error': '#FF6B6B',
+            'info': '#4FC3F7',
+            
+            # Workflow node colors
+            'node_background': '#262730',
+            'node_border': '#4FC3F7',
+            'node_text': '#FAFAFA',
+            'llm_node': '#4FC3F7',
+            'code_node': '#FFB347',
+            'chip_node': '#BA68C8',
+            
+            # Data type colors
+            'json_data': '#FFD54F',
+            'string_data': '#4DB6AC',
+            'list_data': '#BA68C8',
+            'integer_data': '#81C784',
+            'file_data': '#FAFAFA',
+            'single_data': '#424242',
+            'huggingface_data': '#424242',
+            
+            # Status colors
+            'completed_bg': '#1B4332',
+            'failed_bg': '#4A1E1E',
+            'corrupted_bg': "#4A311E",
+            'running_bg': '#3D3B1F',
+            'idle_bg': '#262730',
+            
+            # Test step colors
+            'test_completed': '#3D3B1F',
+            'test_failed': '#4A1E1E',
+            'test_pending': '#3D3B1F',
+            
+            # Connection colors
+            'connection_color': '#4DB6AC',
+            'edge_color': '#A3A8B8'
+        }
+    
+    def get_theme_colors(self) -> Dict[str, Any]:
+        """Get dark theme colors"""
+        return self.colors
+
+# Global theme manager instance
+theme_manager = ThemeManager()
+
 
 def create_styled_steps_from_state(state_data):
     """Create step instances from state file data with proper styling and real names"""
-
 
     steps = state_data["state_steps"]
     nodes = state_data["nodes"]
@@ -69,41 +133,51 @@ class step(object):
 
     def get_parent_style(self):
         """Get styling for parent node based on type and status with dark theme"""
-        from .theme_manager import theme_manager
+
         colors = theme_manager.get_theme_colors()
-        
-        # Check if this is a test step or chip step
+
         is_test_step = self.step_name.startswith('test_')
         is_chip_step = self.step_type == 'chip'
         
-        # Use theme-aware colors
-        if is_chip_step:
-            border_color = colors['chip_node']
-            backgroundColor = colors['node_background']
-            border_style = 'solid'
-            border_width = '3px'
-        elif is_test_step and self.status == 'completed':
-            border_color = colors['warning']
-            backgroundColor = colors['test_completed']
-            border_style = 'dashed'
-            border_width = '3px'
-        elif is_test_step and self.status == 'failed':
+        # Prioritize corrupted status over other conditions
+        if self.status == 'corrupted':
+            # Special style for corrupted nodes
             border_color = colors['error']
-            backgroundColor = colors['test_failed']
-            border_style = 'dashed'
-            border_width = '3px'
-        elif is_test_step:
-            border_color = colors['warning']
-            backgroundColor = colors['test_pending']
-            border_style = 'dashed'
-            border_width = '2px'
+            backgroundColor = colors['corrupted_bg']
+            border_style = 'dotted'
+            border_width = '4px'
         else:
-            # Regular step styling
-            border_color = colors['llm_node'] if self.step_type == 'llm' else colors['code_node']
-            backgroundColor = colors['secondary_background'] if self.status == 'uploaded' else colors['node_background']
-            border_style = 'solid'
-            border_width = '2px'
-        
+            # Check if this is a test step or chip step
+
+            
+            # Use theme-aware colors
+            if is_chip_step:
+                border_color = colors['chip_node']
+                backgroundColor = colors['node_background']
+                border_style = 'solid'
+                border_width = '3px'
+            elif is_test_step and self.status == 'completed':
+                border_color = colors['warning']
+                backgroundColor = colors['test_completed']
+                border_style = 'dashed'
+                border_width = '3px'
+            elif is_test_step and self.status == 'failed':
+                border_color = colors['error']
+                backgroundColor = colors['test_failed']
+                border_style = 'dashed'
+                border_width = '3px'
+            elif is_test_step:
+                border_color = colors['warning']
+                backgroundColor = colors['test_pending']
+                border_style = 'dashed'
+                border_width = '2px'
+            else:
+                # Regular step styling
+                border_color = colors['llm_node'] if self.step_type == 'llm' else colors['code_node']
+                backgroundColor = colors['secondary_background'] if self.status == 'uploaded' else colors['node_background']
+                border_style = 'solid'
+                border_width = '2px'
+
         return {
             'color': colors['node_text'],
             'backgroundColor': backgroundColor,
@@ -123,7 +197,7 @@ class step(object):
 
     def get_child_style(self, marker_name, file_path, is_output=False):
         """Get styling for child nodes based on data type with dark theme"""
-        from .theme_manager import theme_manager
+
         colors = theme_manager.get_theme_colors()
         
         style = {
