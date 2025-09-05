@@ -1,10 +1,10 @@
 {
-  "name": "concteach.language_20250903001542",
+  "name": "concteach.language_20250905015410",
   "status": "running",
   "nodes": [
     {
       "name": "system_prompt",
-      "file_name": "runs/concteach.language_20250903001542/data/system_prompt.json",
+      "file_name": "runs/concteach.language_20250905015410/data/system_prompt.json",
       "type": {
         "str": "data"
       },
@@ -12,7 +12,7 @@
     },
     {
       "name": "user_prompt",
-      "file_name": "runs/concteach.language_20250903001542/data/user_prompt.json",
+      "file_name": "runs/concteach.language_20250905015410/data/user_prompt.json",
       "type": {
         "str": "data"
       },
@@ -20,7 +20,7 @@
     },
     {
       "name": "raw_seed_data",
-      "file_name": "runs/concteach.language_20250903001542/data/raw_seed_data.json",
+      "file_name": "runs/concteach.language_20250905015410/data/raw_seed_data.json",
       "type": {
         "str": "data"
       },
@@ -34,16 +34,16 @@
       "status": "uploaded",
       "tool_name": "",
       "batch": {
-        "in": "runs/concteach.language_20250903001542/batch/seed_batch.jsonl",
-        "upload_id": "batch_68b76c9e411c8190b11992466f4397bf",
-        "out": "runs/concteach.language_20250903001542/batch/seed_results.jsonl"
+        "in": "runs/concteach.language_20250905015410/batch/seed_batch.jsonl",
+        "upload_id": "batch_68ba26b33bf48190bbd6def43ae28b13",
+        "out": "runs/concteach.language_20250905015410/batch/seed_results.jsonl"
       },
       "data": {
         "in": {},
         "out": {
-          "user_prompt": "runs/concteach.language_20250903001542/data/user_prompt.json",
-          "system_prompt": "runs/concteach.language_20250903001542/data/system_prompt.json",
-          "raw_seed_data": "runs/concteach.language_20250903001542/data/raw_seed_data.json"
+          "user_prompt": "runs/concteach.language_20250905015410/data/user_prompt.json",
+          "system_prompt": "runs/concteach.language_20250905015410/data/system_prompt.json",
+          "raw_seed_data": "runs/concteach.language_20250905015410/data/raw_seed_data.json"
         }
       }
     }

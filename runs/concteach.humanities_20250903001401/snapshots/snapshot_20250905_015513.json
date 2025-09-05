@@ -1,6 +1,6 @@
 {
   "name": "concteach.humanities_20250903001401",
-  "status": "running_chip",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -25,14 +25,6 @@
         "str": "data"
       },
       "state": "completed"
-    },
-    {
-      "name": "parsed_data",
-      "file_name": "runs/concteach.humanities_20250903001401/data/parsing_parsed_data_extracted.json",
-      "type": {
-        "json": "data"
-      },
-      "state": "uploaded"
     }
   ],
   "state_steps": [
@@ -52,25 +44,6 @@
           "user_prompt": "runs/concteach.humanities_20250903001401/data/user_prompt.json",
           "system_prompt": "runs/concteach.humanities_20250903001401/data/system_prompt.json",
           "raw_seed_data": "runs/concteach.humanities_20250903001401/data/raw_seed_data.json"
-        }
-      }
-    },
-    {
-      "name": "parsing",
-      "type": "chip",
-      "status": "uploaded",
-      "tool_name": "Dialogue Parsing",
-      "batch": {
-        "in": "runs/concteach.humanities_20250903001401/batch/parsing_batch.jsonl",
-        "upload_id": "batch_68ba26e8a0e481908e0958799d6f3ea2",
-        "out": "runs/concteach.humanities_20250903001401/batch/parsing_results.jsonl"
-      },
-      "data": {
-        "in": {
-          "data": "runs/concteach.humanities_20250903001401/data/raw_seed_data.json"
-        },
-        "out": {
-          "parsed_data": "runs/concteach.humanities_20250903001401/data/parsing_parsed_data_extracted.json"
         }
       }
     }
