@@ -16,6 +16,12 @@ available_chips = {
             "in": {"data":{"str":"data"}},
             "out": {"parsed_data":{"json":"data"}}
         }
+    },
+    "5-Stage Conversation Analysis": {
+        "data_markers": {
+            "in": {"data":{"json":"data"}},
+            "out": {"EXCELLENT":{"json":"data"}, "GOOD":{"json":"data"}, "FAIR":{"json":"data"}, "POOR":{"json":"data"}, "REJECT":{"json":"data"}}
+        }
     }
 }
 
@@ -48,9 +54,29 @@ def finish_dialogue_parsing_chip(data: dict, batch_data: dict):
     unwind_data = save_code_tool_results("unwind",execute_code_tool("bind", {"structured_content": batch_data, "key_name": "dialogue"}), None)
     return {"parsed_data": unwind_data}
 
+def start_5_stage_conversation_analysis_chip(data: dict, batch_file_location: str):
+    classification_description = """DIALOGUE QUALITY ASSESSMENT CRITERIA:\n\n1. COHERENCE & RELEVANCE (40% weight):\n   - Responses are logically connected to previous messages\n   - Each turn addresses the topic or question appropriately\n   - No contradictory or nonsensical responses\n   - Maintains conversational flow and context\n\n2. COMPLETENESS & STRUCTURE (25% weight):\n   - Dialogue has clear beginning and natural progression\n   - Conversations feel complete, not abruptly cut off\n   - Proper turn-taking between participants\n   - No missing or truncated responses\n\n3. LANGUAGE QUALITY (20% weight):\n   - Proper grammar, spelling, and punctuation\n   - Natural, human-like language (not robotic or template-heavy)\n   - Appropriate vocabulary and tone for the context\n   - Clear and understandable communication\n\n4. ROLE CONSISTENCY (10% weight):\n   - Speakers maintain consistent roles throughout\n   - No role confusion or switching mid-conversation\n   - Appropriate expertise level for assigned roles\n\n5. EDUCATIONAL/PRACTICAL VALUE (5% weight):\n   - Content is informative, helpful, or educational\n   - Provides value to potential training use cases\n   - Demonstrates good conversation patterns\n\nCLASSIFICATION GUIDELINES:\n- EXCELLENT: Meets all criteria excellently, exemplary dialogue\n- GOOD: Meets most criteria well, minor issues only\n- FAIR: Meets basic criteria but has notable quality issues\n- POOR: Significant problems in multiple criteria areas\n- REJECT: Unusable due to major coherence, completion, or quality issues"""
+    classification_list = ["EXCELLENT", "GOOD", "FAIR", "POOR", "REJECT"]
+    expanded_descriptions = save_code_tool_results("expand",execute_code_tool("expand", {"single": classification_description, "data_to_adapt_to": data}),None)
+    expanded_classification_list = save_code_tool_results("expand",execute_code_tool("expand", {"single": classification_list, "data_to_adapt_to": data}),None)
+    generate_llm_tool_batch_file("clean", {"__criteria_verbose__": expanded_descriptions, "__lables__": expanded_classification_list, "__dirty_data__": data}, batch_file_location)
+
+    output_markers = {}
+
+    for classification in classification_list:
+        output_markers.update({classification: {"json":"data"}})
+
+    return output_markers
+
+def finish_5_stage_conversation_analysis_chip(data: dict, batch_data: dict):
+    print("Finishing 5-stage conversation analysis chip...")
+    segregated_data = execute_code_tool("segregate", {"data": data, "classification": batch_data, "labels": ["EXCELLENT", "GOOD", "FAIR", "POOR", "REJECT"]})
+    return segregated_data
+
 REGISTRY: dict[str, Callable[..., Any]] = {
     "Classification": {"start":start_classification_chip,"finish":finish_classification_chip},
-    "Dialogue Parsing": {"start":start_dialogue_parsing_chip,"finish":finish_dialogue_parsing_chip}
+    "Dialogue Parsing": {"start":start_dialogue_parsing_chip,"finish":finish_dialogue_parsing_chip},
+    "5-Stage Conversation Analysis": {"start":start_5_stage_conversation_analysis_chip,"finish":finish_5_stage_conversation_analysis_chip}
 }
 
 def prepare_chip_use(chip_name):

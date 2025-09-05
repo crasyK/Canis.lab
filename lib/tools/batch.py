@@ -66,27 +66,21 @@ def convert_batch_out_to_json_data(batch_file, output_file=None):
     1. Empty or non-existent files.
     2. Lines in the file that are not valid JSON.
     3. Lines where the API returned an error instead of a successful response.
-    4. Successful responses where the model's output content is not a valid JSON string.
+    4. Extracts ANY text content (JSON or plain text) as strings.
+    5. Cursed LLM content that breaks JSONL lines.
 
     Returns:
-        dict: A dictionary containing:
-              'status' (str): 'complete' if all lines were parsed successfully.
-                              'corrupted' if any line failed to parse or contained an error.
-                              'empty' if the input file was empty or not found.
-              'data' (dict): The successfully parsed data where the content was valid JSON.
-              'errors' (list): A list of detailed error messages for failed lines.
+        tuple: (output_data, status) where:
+              - output_data (dict): Dictionary of custom_id: text_content (as strings)
+              - status (str): 'completed', 'corrupted', or 'empty'
     """
     output_data = {}
     errors = []
-    status = "complete"
+    status = "completed"
     total_lines = 0
 
     if not os.path.exists(batch_file) or os.path.getsize(batch_file) == 0:
-        return {
-            "status": "empty",
-            "data": {},
-            "errors": [f"The file '{batch_file}' is empty or does not exist."]
-        }
+        return {}, "empty"
 
     with open(batch_file, 'r', encoding='utf-8') as f:
         for i, line in enumerate(f, 1):
@@ -124,26 +118,33 @@ def convert_batch_out_to_json_data(batch_file, output_file=None):
                     errors.append(f"Line {i}: Could not find 'text' content for custom_id: {custom_id}")
                     continue
 
-                # --- NEW: Try to parse the inner JSON content ---
+                # Store ALL text content as string, regardless of whether it's valid JSON
+                output_data[custom_id] = text_content
+                
+                # Optional: Just log if it's not valid JSON (but don't treat as error)
                 try:
-                    # The model's output is itself a JSON string that needs parsing
-                    parsed_content = json.loads(text_content)
-                    output_data[custom_id] = parsed_content
+                    json.loads(text_content)
+                    print(f"✅ Line {i}: Valid JSON content for custom_id: {custom_id}")
                 except json.JSONDecodeError:
-                    status = "corrupted"
-                    errors.append(f"Line {i}: Content for custom_id '{custom_id}' is not valid JSON. Content was: '{text_content}'")
-                # --- End of new block ---
+                    print(f"ℹ️ Line {i}: Plain text content for custom_id: {custom_id} (not JSON, but that's OK)")
 
             except json.JSONDecodeError as e:
+                # Handle cursed LLM content that breaks the JSONL line
                 status = "corrupted"
-                errors.append(f"Line {i}: Failed to decode JSON line. Error: {e}. Content: '{line}'")
+                errors.append(f"Line {i}: Failed to decode JSONL line (possibly cursed LLM output). Error: {e}. Content preview: '{line[:200]}...'")
+                
             except Exception as e:
                 status = "corrupted"
                 errors.append(f"Line {i}: An unexpected error occurred: {str(e)}")
     
     print(f"✅ Processing complete. Status: {status}")
-    print(f"   - Successfully parsed {len(output_data)} results out of {total_lines} total lines.")
+    print(f"   - Successfully extracted {len(output_data)} text contents out of {total_lines} total lines.")
     print(f"   - Found {len(errors)} errors.")
+
+    # If errors are less than 25% of successful results, still mark as completed
+    if len(errors) < len(output_data) / 4 and len(errors) > 0:
+        status = "completed"
+        print(f"   - Status upgraded to 'completed' (errors < 25% of successful results)")
 
     if output_file:
         with open(output_file, 'w') as f:
@@ -151,6 +152,8 @@ def convert_batch_out_to_json_data(batch_file, output_file=None):
         print(f"   - Full results saved to {output_file}")
         
     return output_data, status
+
+
 
 def cancel_batch_job(batch_id):
   client.batches.cancel(batch_id)

@@ -1,6 +1,6 @@
 {
   "name": "concteach.language_20250905015410",
-  "status": "running",
+  "status": "finalized",
   "nodes": [
     {
       "name": "system_prompt",
@@ -24,14 +24,76 @@
       "type": {
         "str": "data"
       },
-      "state": "uploaded"
+      "state": "completed"
+    },
+    {
+      "name": "parsed_data",
+      "file_name": "runs/concteach.language_20250905015410/data/Parsing_parsed_data_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "EXCELLENT",
+      "file_name": "runs/concteach.language_20250905015410/data/Classify_EXCELLENT_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "GOOD",
+      "file_name": "runs/concteach.language_20250905015410/data/Classify_GOOD_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "FAIR",
+      "file_name": "runs/concteach.language_20250905015410/data/Classify_FAIR_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "POOR",
+      "file_name": "runs/concteach.language_20250905015410/data/Classify_POOR_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "REJECT",
+      "file_name": "runs/concteach.language_20250905015410/data/Classify_REJECT_extracted.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "completed"
+    },
+    {
+      "name": "combined_data",
+      "file_name": "runs/concteach.language_20250905015410/data/Results_combined_data_processed.json",
+      "type": {
+        "json": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "finalized_data",
+      "file_name": "runs/concteach.language_20250905015410/datasets/finalized_20250905_134055",
+      "type": "huggingface_dataset",
+      "state": "created"
     }
   ],
   "state_steps": [
     {
       "name": "seed",
       "type": "llm",
-      "status": "uploaded",
+      "status": "completed",
       "tool_name": "",
       "batch": {
         "in": "runs/concteach.language_20250905015410/batch/seed_batch.jsonl",
@@ -46,6 +108,77 @@
           "raw_seed_data": "runs/concteach.language_20250905015410/data/raw_seed_data.json"
         }
       }
+    },
+    {
+      "name": "Parsing",
+      "type": "chip",
+      "status": "completed",
+      "tool_name": "Dialogue Parsing",
+      "batch": {
+        "in": "runs/concteach.language_20250905015410/batch/Parsing_batch.jsonl",
+        "upload_id": "batch_68bac23c1a1081909f0e1601222bf578",
+        "out": "runs/concteach.language_20250905015410/batch/Parsing_results.jsonl"
+      },
+      "data": {
+        "in": {
+          "data": "runs/concteach.language_20250905015410/data/raw_seed_data.json"
+        },
+        "out": {
+          "parsed_data": "runs/concteach.language_20250905015410/data/Parsing_parsed_data_extracted.json"
+        }
+      }
+    },
+    {
+      "name": "Classify",
+      "type": "chip",
+      "status": "completed",
+      "tool_name": "5-Stage Conversation Analysis",
+      "batch": {
+        "in": "runs/concteach.language_20250905015410/batch/Classify_batch.jsonl",
+        "upload_id": "batch_68bac3818d10819094a5b353eee4aada",
+        "out": "runs/concteach.language_20250905015410/batch/Classify_results.jsonl"
+      },
+      "data": {
+        "in": {
+          "data": "runs/concteach.language_20250905015410/data/Parsing_parsed_data_extracted.json"
+        },
+        "out": {
+          "EXCELLENT": "runs/concteach.language_20250905015410/data/Classify_EXCELLENT_extracted.json",
+          "GOOD": "runs/concteach.language_20250905015410/data/Classify_GOOD_extracted.json",
+          "FAIR": "runs/concteach.language_20250905015410/data/Classify_FAIR_extracted.json",
+          "POOR": "runs/concteach.language_20250905015410/data/Classify_POOR_extracted.json",
+          "REJECT": "runs/concteach.language_20250905015410/data/Classify_REJECT_extracted.json"
+        }
+      }
+    },
+    {
+      "name": "Results",
+      "type": "code",
+      "tool_name": "combine",
+      "data": {
+        "in": {
+          "data_A": "runs/concteach.language_20250905015410/data/Classify_EXCELLENT_extracted.json",
+          "data_B": "runs/concteach.language_20250905015410/data/Classify_GOOD_extracted.json"
+        },
+        "out": {
+          "combined_data": "runs/concteach.language_20250905015410/data/Results_combined_data_processed.json"
+        }
+      },
+      "status": "completed"
+    },
+    {
+      "name": "Final",
+      "type": "code",
+      "tool_name": "finalize",
+      "data": {
+        "in": {
+          "data": "runs/concteach.language_20250905015410/data/Results_combined_data_processed.json"
+        },
+        "out": {
+          "finalized_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/concteach.language_20250905015410/datasets/finalized_20250905_134055"
+        }
+      },
+      "status": "completed"
     }
   ]
 }

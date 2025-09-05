@@ -16,7 +16,7 @@ clean_dict = {
         "body": {
             "model": "gpt-5-nano",
             "input": [
-                {"role": "system", "content": "Decide if following data fullfills the following criteria: __criteria_verbose__. Return a JSON object with the following fields: 'status' (select one oflables according to the criteria)"},
+                {"role": "system", "content": "Decide if following data fullfills the following criteria: __criteria_verbose__. Return a JSON object with the following fields: 'status' (select one of __lables__ according to the criteria)"},
                 {"role": "user", "content": "__dirty_data__"}
             ],
             "text": {

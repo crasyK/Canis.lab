@@ -116,26 +116,41 @@ def bind(structured_content, key_name):
     
     for key, value in structured_content.items():
         try:
-            # First, try to parse the JSON string
-            json_data = json.loads(value)
+            print(f"Processing key '{key}', value type: {type(value)}")
+            
+            # Handle both cases: already parsed dict OR JSON string
+            if isinstance(value, dict):
+                # Value is already a parsed dictionary
+                json_data = value
+                print(f"  - Value is already a dict")
+            elif isinstance(value, str):
+                # Value is a JSON string that needs parsing
+                json_data = json.loads(value)
+                print(f"  - Parsed JSON string")
+            else:
+                # Handle other types (int, list, etc.)
+                skipped_entries.append(f"Key '{key}': Value type {type(value)} is not supported")
+                continue
             
             # Then, try to access the specified key
             if key_name in json_data:
                 # Check if the value is a list (for extend) or single item (for append)
                 if isinstance(json_data[key_name], list):
                     data.extend(json_data[key_name])
+                    print(f"  - Extended data with {len(json_data[key_name])} items")
                 else:
                     data.append(json_data[key_name])
+                    print(f"  - Appended single item")
             else:
-                skipped_entries.append(f"Key '{key}': Missing '{key_name}' field in JSON")
+                skipped_entries.append(f"Key '{key}': Missing '{key_name}' field in data")
                 
         except json.JSONDecodeError as e:
-            # Handle invalid JSON
+            # Handle invalid JSON (only for string inputs)
             skipped_entries.append(f"Key '{key}': Invalid JSON - {str(e)}")
             
         except TypeError as e:
-            # Handle cases where value is not a string (e.g., None, int, etc.)
-            skipped_entries.append(f"Key '{key}': Value is not a valid JSON string - {str(e)}")
+            # Handle other type errors
+            skipped_entries.append(f"Key '{key}': Type error - {str(e)}")
             
         except Exception as e:
             # Catch any other unexpected errors

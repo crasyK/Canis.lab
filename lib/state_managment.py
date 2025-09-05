@@ -499,7 +499,9 @@ def complete_running_step(state_file):
     
     status, counts = check_batch_job(batch_id)
 
-    if status == "completed":
+    print(status)
+
+    if status == "completed" or status == "expired":
         
         print("Batch job completed successfully")
 
@@ -516,28 +518,31 @@ def complete_running_step(state_file):
         
         if state["status"] == "running_chip":
             relevant_markers = get_uploaded_markers(state_file)
-            cache_batch_data, status = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
+            cache_batch_data, status_step = convert_batch_out_to_json_data(last_step["batch"]["out"], None)
             final_data = finish_chip_tool(chip_name=last_step["tool_name"],data=get_data_from_marker_data_in(state_file, last_step["data"]["in"]), batch_data=cache_batch_data)
             save_chip_results(last_step["tool_name"], final_data, last_step["data"]["out"])
             # update output markers
             for output_marker_name, data in last_step["data"]["out"].items():
                 current_marker = (next(d for d in relevant_markers if d['name'] == output_marker_name))
-                current_marker["state"] = status
+                current_marker["state"] = status_step
                 (next(d for d in state["nodes"] if d['name'] == current_marker['name'])).update(current_marker)
-            last_step["status"] = status
+            last_step["status"] = status_step
         else:
             output_marker = get_uploaded_markers(state_file)[-1]
             # Convert batch output to JSON data
-            data, status = convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
+            data, status_step = convert_batch_out_to_json_data(last_step["batch"]["out"], last_step["data"]["out"][output_marker["name"]])
 
             # Update the state file with the new data
-            output_marker["state"] = status  # Fix: Update marker to point to extracted file
+            output_marker["state"] = status_step  # Fix: Update marker to point to extracted file
             (next(d for d in state["nodes"] if d['name'] == output_marker['name'])).update(output_marker)
-            last_step["status"] = status
+            last_step["status"] =   status_step
 
         print("completed")
-        state["status"] = "completed"
-        
+        if status == "expired":
+            state["status"] = "corrupted"
+        else:
+            state["status"] = "completed"
+
         # Save state using DirectoryManager
         dir_manager.save_json(state_file, state)
         return "Batch job completed successfully:", counts
@@ -545,11 +550,16 @@ def complete_running_step(state_file):
     elif status == "failed":
         last_step["status"] = "failed"
         last_step["batch"]["out"] = None
-        state["status"] = "failed"
+        state["status"] = "failed"  
         
         # Save state using DirectoryManager
         dir_manager.save_json(state_file, state)
+        print("Batch job failed")
+        print("Error details:", counts)
         return "Batch job failed:", counts.get("error", "Unknown error")
+    elif status == "finalizing":
+        last_step["status"] = "in_progress"
+        return "Batch job is finalizing...", counts
     else:
         last_step["status"] = "in_progress"
         return "Batch job is still in progress:", counts
