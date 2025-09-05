@@ -1,10 +1,10 @@
 {
-  "name": "concteach.math_20250830162221",
+  "name": "concteach.math",
   "status": "finalized",
   "nodes": [
     {
       "name": "system_prompt",
-      "file_name": "runs/concteach.math_20250830162221/data/system_prompt.json",
+      "file_name": "runs/concteach.math/data/system_prompt.json",
       "type": {
         "str": "data"
       },
@@ -12,7 +12,7 @@
     },
     {
       "name": "user_prompt",
-      "file_name": "runs/concteach.math_20250830162221/data/user_prompt.json",
+      "file_name": "runs/concteach.math/data/user_prompt.json",
       "type": {
         "str": "data"
       },
@@ -20,7 +20,7 @@
     },
     {
       "name": "raw_seed_data",
-      "file_name": "runs/concteach.math_20250830162221/data/raw_seed_data_extracted.json",
+      "file_name": "runs/concteach.math/data/raw_seed_data_extracted.json",
       "type": {
         "str": "data"
       },
@@ -28,7 +28,7 @@
     },
     {
       "name": "dialogues",
-      "file_name": "runs/concteach.math_20250830162221/data/dialogues_extracted.json",
+      "file_name": "runs/concteach.math/data/dialogues_extracted.json",
       "type": {
         "json": "data"
       },
@@ -36,7 +36,7 @@
     },
     {
       "name": "dialogues",
-      "file_name": "runs/concteach.math_20250830162221/data/test_PTest_dialogues_extracted.json",
+      "file_name": "runs/concteach.math/data/test_PTest_dialogues_extracted.json",
       "type": {
         "json": "data"
       },
@@ -56,7 +56,7 @@
     },
     {
       "name": "bound_data",
-      "file_name": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json",
+      "file_name": "runs/concteach.math/data/unwind_bound_data_processed.json",
       "type": {
         "json": "data"
       },
@@ -124,7 +124,7 @@
     },
     {
       "name": "excellent",
-      "file_name": "runs/concteach.math_20250830162221/data/Classify_excellent_extracted.json",
+      "file_name": "runs/concteach.math/data/Classify_excellent_extracted.json",
       "type": {
         "json": "data"
       },
@@ -132,7 +132,7 @@
     },
     {
       "name": "good",
-      "file_name": "runs/concteach.math_20250830162221/data/Classify_good_extracted.json",
+      "file_name": "runs/concteach.math/data/Classify_good_extracted.json",
       "type": {
         "json": "data"
       },
@@ -140,7 +140,7 @@
     },
     {
       "name": "fair",
-      "file_name": "runs/concteach.math_20250830162221/data/Classify_fair_extracted.json",
+      "file_name": "runs/concteach.math/data/Classify_fair_extracted.json",
       "type": {
         "json": "data"
       },
@@ -148,7 +148,7 @@
     },
     {
       "name": "poor",
-      "file_name": "runs/concteach.math_20250830162221/data/Classify_poor_extracted.json",
+      "file_name": "runs/concteach.math/data/Classify_poor_extracted.json",
       "type": {
         "json": "data"
       },
@@ -156,7 +156,7 @@
     },
     {
       "name": "reject",
-      "file_name": "runs/concteach.math_20250830162221/data/Classify_reject_extracted.json",
+      "file_name": "runs/concteach.math/data/Classify_reject_extracted.json",
       "type": {
         "json": "data"
       },
@@ -164,7 +164,7 @@
     },
     {
       "name": "combined_data",
-      "file_name": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json",
+      "file_name": "runs/concteach.math/data/Results2_combined_data_processed.json",
       "type": {
         "json": "data"
       },
@@ -172,7 +172,7 @@
     },
     {
       "name": "finalized_data",
-      "file_name": "runs/concteach.math_20250830162221/datasets/finalized_20250901_211650",
+      "file_name": "runs/concteach.math/datasets/finalized_20250901_211650",
       "type": "huggingface_dataset",
       "state": "created"
     }
@@ -184,16 +184,16 @@
       "status": "completed",
       "tool_name": "",
       "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/seed_batch.jsonl",
+        "in": "runs/concteach.math/batch/seed_batch.jsonl",
         "upload_id": "batch_68b3094308e081909cc654418b896936",
-        "out": "runs/concteach.math_20250830162221/batch/seed_results.jsonl"
+        "out": "runs/concteach.math/batch/seed_results.jsonl"
       },
       "data": {
         "in": {},
         "out": {
-          "user_prompt": "runs/concteach.math_20250830162221/data/user_prompt.json",
-          "system_prompt": "runs/concteach.math_20250830162221/data/system_prompt.json",
-          "raw_seed_data": "runs/concteach.math_20250830162221/data/raw_seed_data_extracted.json"
+          "user_prompt": "runs/concteach.math/data/user_prompt.json",
+          "system_prompt": "runs/concteach.math/data/system_prompt.json",
+          "raw_seed_data": "runs/concteach.math/data/raw_seed_data_extracted.json"
         }
       }
     },
@@ -203,16 +203,16 @@
       "status": "completed",
       "tool_name": "parse_conversation",
       "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/test_PTest_batch.jsonl",
+        "in": "runs/concteach.math/batch/test_PTest_batch.jsonl",
         "upload_id": "batch_68b32a73f718819086d7993c5b94db82",
-        "out": "runs/concteach.math_20250830162221/batch/test_PTest_results.jsonl"
+        "out": "runs/concteach.math/batch/test_PTest_results.jsonl"
       },
       "data": {
         "in": {
-          "__data__": "runs/concteach.math_20250830162221/data/raw_seed_data_extracted.json"
+          "__data__": "runs/concteach.math/data/raw_seed_data_extracted.json"
         },
         "out": {
-          "dialogues": "runs/concteach.math_20250830162221/data/dialogues_extracted.json"
+          "dialogues": "runs/concteach.math/data/dialogues_extracted.json"
         }
       }
     },
@@ -223,10 +223,10 @@
       "data": {
         "in": {
           "key_name": "dialogue",
-          "structured_content": "runs/concteach.math_20250830162221/data/dialogues_extracted.json"
+          "structured_content": "runs/concteach.math/data/dialogues_extracted.json"
         },
         "out": {
-          "bound_data": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json"
+          "bound_data": "runs/concteach.math/data/unwind_bound_data_processed.json"
         }
       },
       "status": "completed"
@@ -237,22 +237,22 @@
       "status": "completed",
       "tool_name": "Classification",
       "batch": {
-        "in": "runs/concteach.math_20250830162221/batch/Classify_batch.jsonl",
+        "in": "runs/concteach.math/batch/Classify_batch.jsonl",
         "upload_id": "batch_68b58c1dc64081909193f321938985e1",
-        "out": "runs/concteach.math_20250830162221/batch/Classify_results.jsonl"
+        "out": "runs/concteach.math/batch/Classify_results.jsonl"
       },
       "data": {
         "in": {
           "classification_description": "classification_description_data",
-          "data": "runs/concteach.math_20250830162221/data/unwind_bound_data_processed.json",
+          "data": "runs/concteach.math/data/unwind_bound_data_processed.json",
           "classification_list": "classification_list_data"
         },
         "out": {
-          "excellent": "runs/concteach.math_20250830162221/data/Classify_excellent_extracted.json",
-          "good": "runs/concteach.math_20250830162221/data/Classify_good_extracted.json",
-          "fair": "runs/concteach.math_20250830162221/data/Classify_fair_extracted.json",
-          "poor": "runs/concteach.math_20250830162221/data/Classify_poor_extracted.json",
-          "reject": "runs/concteach.math_20250830162221/data/Classify_reject_extracted.json"
+          "excellent": "runs/concteach.math/data/Classify_excellent_extracted.json",
+          "good": "runs/concteach.math/data/Classify_good_extracted.json",
+          "fair": "runs/concteach.math/data/Classify_fair_extracted.json",
+          "poor": "runs/concteach.math/data/Classify_poor_extracted.json",
+          "reject": "runs/concteach.math/data/Classify_reject_extracted.json"
         }
       }
     },
@@ -262,11 +262,11 @@
       "tool_name": "combine",
       "data": {
         "in": {
-          "data_A": "runs/concteach.math_20250830162221/data/Classify_excellent_extracted.json",
-          "data_B": "runs/concteach.math_20250830162221/data/Classify_good_extracted.json"
+          "data_A": "runs/concteach.math/data/Classify_excellent_extracted.json",
+          "data_B": "runs/concteach.math/data/Classify_good_extracted.json"
         },
         "out": {
-          "combined_data": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json"
+          "combined_data": "runs/concteach.math/data/Results2_combined_data_processed.json"
         }
       },
       "status": "completed"
@@ -277,10 +277,10 @@
       "tool_name": "finalize",
       "data": {
         "in": {
-          "data": "runs/concteach.math_20250830162221/data/Results2_combined_data_processed.json"
+          "data": "runs/concteach.math/data/Results2_combined_data_processed.json"
         },
         "out": {
-          "finalized_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/concteach.math_20250830162221/datasets/finalized_20250901_211650"
+          "finalized_data": "/home/mak-ko/Projects/LLM-Synth/LLM-Synth/runs/concteach.math/datasets/finalized_20250901_211650"
         }
       },
       "status": "completed"

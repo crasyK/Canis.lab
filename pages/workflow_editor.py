@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import json
 import time
+from datetime import datetime, timedelta 
 from streamlit_flow import streamlit_flow
 from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 from streamlit_flow.state import StreamlitFlowState
@@ -17,301 +18,386 @@ from lib.tools.llm import get_available_llm_tools, prepare_data
 from lib.tools.code import get_available_code_tools, prepare_tool_use
 from lib.tools.chip import get_available_chips, prepare_chip_use
 from lib.tools.global_func import get_type, check_data_type, has_connection
+from lib.progress_tracker import ProgressTracker, BatchProgressTracker
 from lib.directory_manager import dir_manager
 
 # Page config
 st.set_page_config(page_title="Workflow Editor", layout="wide")
 
-class WorkflowManager:
-    """Simplified workflow management interface"""
+class ProgressTrackerUI:
+    """UI component for displaying progress tracking information"""
     
-    def render_workflow_selector(self):
-        """Compact workflow selection interface"""
-        st.subheader("📁 Workflow")
+    def __init__(self, workflow_name=None):
+        self.workflow_name = workflow_name
+        self.batch_tracker = BatchProgressTracker(workflow_name) if workflow_name else None
+    
+    def render_progress_dashboard(self):
+        """Render comprehensive progress dashboard"""
+        if not self.workflow_name:
+            st.info("📊 Load a workflow to view progress tracking")
+            return
         
-        # Current workflow display
-        if st.session_state.current_workflow:
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.success(f"**{st.session_state.current_workflow}**")
-            with col2:
-                if st.button("🔄", help="Reload workflow", key="reload_workflow"):
-                    load_workflow_state(st.session_state.current_workflow)
-                    st.rerun()
-        else:
-            st.info("No workflow loaded")
+        st.subheader("📊 Progress Dashboard")
         
-        # Quick actions
-        col1, col2 = st.columns(2)
+        # Get current workflow state
+        state_file_path = dir_manager.get_state_file_path(self.workflow_name)
+        if not state_file_path.exists():
+            st.error("Workflow state file not found")
+            return
+        
+        state_data = dir_manager.load_json(state_file_path)
+        
+        # Overall workflow progress
+        self._render_workflow_overview(state_data)
+        
+        # Running batches progress
+        self._render_batch_progress(state_data)
+        
+        # Step-by-step progress
+        self._render_step_progress(state_data)
+    
+    def _render_workflow_overview(self, state_data):
+        """Render overall workflow progress overview"""
+        st.write("**📈 Workflow Overview**")
+        
+        total_steps = len(state_data.get('state_steps', []))
+        completed_steps = len([s for s in state_data.get('state_steps', []) 
+                              if s.get('status') == 'completed'])
+        running_steps = len([s for s in state_data.get('state_steps', []) 
+                            if s.get('status') in ['uploaded', 'in_progress']])
+        failed_steps = len([s for s in state_data.get('state_steps', []) 
+                           if s.get('status') == 'failed'])
+        
+        # Progress metrics
+        col1, col2, col3, col4 = st.columns(4)
         with col1:
-            if st.button("🆕 New", key="new_workflow", use_container_width=True):
-                return "create_new"
+            st.metric("🎯 Total Steps", total_steps)
         with col2:
-            if st.button("📂 Load", key="load_workflow", use_container_width=True):
-                return "load_existing"
+            st.metric("✅ Completed", completed_steps)
+        with col3:
+            st.metric("🔄 Running", running_steps)
+        with col4:
+            st.metric("❌ Failed", failed_steps)
         
+        # Overall progress bar
+        if total_steps > 0:
+            progress_pct = completed_steps / total_steps
+            st.progress(progress_pct)
+            st.caption(f"Overall Progress: {progress_pct:.1%}")
+        
+        # Workflow status indicator
+        status = state_data.get('status', 'unknown')
+        status_color = {
+            'running': '🟡',
+            'running_chip': '🟠', 
+            'completed': '🟢',
+            'failed': '🔴',
+            'created': '⚪'
+        }.get(status, '⚫')
+        
+        st.write(f"**Status:** {status_color} {status.title()}")
+    
+    def _render_batch_progress(self, state_data):
+        """Render detailed batch job progress"""
+        running_batches = [s for s in state_data.get('state_steps', []) 
+                          if s.get('status') in ['uploaded', 'in_progress']]
+        
+        if not running_batches:
+            return
+        
+        st.write("**🚀 Running Batch Jobs**")
+        
+        for batch_step in running_batches:
+            with st.expander(f"🔄 {batch_step['name']} - {batch_step.get('tool_name', 'Unknown')}", expanded=True):
+                self._render_single_batch_progress(batch_step)
+    
+    def _render_single_batch_progress(self, batch_step):
+        """Render progress for a single batch job"""
+        batch_id = batch_step.get('batch', {}).get('upload_id')
+        if not batch_id:
+            st.warning("No batch ID found")
+            return
+        
+        # Get batch progress data
+        if self.batch_tracker:
+            batch_data = self.batch_tracker.get_batch_progress(batch_id)
+            
+            if batch_data:
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    # Progress information
+                    progress_pct = batch_data.get('progress_pct', 0)
+                    status = batch_data.get('status', 'unknown')
+                    
+                    # Progress bar
+                    st.progress(progress_pct / 100)
+                    st.caption(f"Progress: {progress_pct:.1f}%")
+                    
+                    # Status and timing
+                    st.write(f"**Status:** {status}")
+                    
+                    # Time information
+                    if 'created_time' in batch_data:
+                        created_time = datetime.fromtimestamp(batch_data['created_time'])
+                        elapsed = datetime.now() - created_time
+                        st.write(f"**Running for:** {self._format_duration(elapsed)}")
+                    
+                    # Estimated completion
+                    if progress_pct > 0 and progress_pct < 100:
+                        estimated_remaining = self._estimate_remaining_time(batch_data)
+                        if estimated_remaining:
+                            st.write(f"**Est. remaining:** {estimated_remaining}")
+                
+                with col2:
+                    # Action buttons
+                    if st.button("🔄 Check Now", key=f"check_{batch_id[:8]}"):
+                        self._check_batch_status(batch_id)
+                        st.rerun()
+                    
+                    if st.button("❌ Cancel", key=f"cancel_{batch_id[:8]}"):
+                        self._cancel_batch(batch_step)
+                        st.rerun()
+                
+                # Detailed counts if available
+                counts = batch_data.get('counts', {})
+                if counts:
+                    st.write("**Detailed Status:**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total", counts.get('total', 0))
+                    with col2:
+                        st.metric("Completed", counts.get('completed', 0))
+                    with col3:
+                        st.metric("Failed", counts.get('failed', 0))
+                
+                # Progress log (last few entries)
+                if 'progress_log' in batch_data and batch_data['progress_log']:
+                    with st.expander("📝 Progress Log", expanded=False):
+                        for log_entry in batch_data['progress_log'][-5:]:  # Last 5 entries
+                            timestamp = datetime.fromtimestamp(log_entry['timestamp'])
+                            st.caption(f"{timestamp.strftime('%H:%M:%S')}: {log_entry['status']} - {log_entry.get('counts', {})}")
+    
+    def _render_step_progress(self, state_data):
+        """Render step-by-step progress timeline"""
+        steps = state_data.get('state_steps', [])
+        if not steps:
+            return
+        
+        st.write("**🔗 Step Timeline**")
+        
+        for i, step in enumerate(steps, 1):
+            status = step.get('status', 'unknown')
+            step_name = step.get('name', f'Step {i}')
+            tool_name = step.get('tool_name', 'Unknown')
+            
+            # Status emoji
+            status_emoji = {
+                'completed': '✅',
+                'uploaded': '🔄',
+                'in_progress': '⏳',
+                'failed': '❌',
+                'cancelled': '🚫',
+                'created': '⚪'
+            }.get(status, '⚫')
+            
+            col1, col2, col3 = st.columns([1, 3, 2])
+            
+            with col1:
+                st.write(f"{status_emoji} **{i}**")
+            
+            with col2:
+                st.write(f"**{step_name}** ({tool_name})")
+                if status in ['uploaded', 'in_progress']:
+                    # Show mini progress for running steps
+                    st.progress(0.5)  # Indeterminate progress
+            
+            with col3:
+                st.caption(status.title())
+                
+                # Add timing information if available
+                if 'batch' in step and step['batch'].get('upload_id'):
+                    batch_id = step['batch']['upload_id']
+                    if self.batch_tracker:
+                        batch_data = self.batch_tracker.get_batch_progress(batch_id)
+                        if batch_data and 'created_time' in batch_data:
+                            created_time = datetime.fromtimestamp(batch_data['created_time'])
+                            elapsed = datetime.now() - created_time
+                            st.caption(f"Running: {self._format_duration(elapsed)}")
+    
+    def render_compact_progress(self):
+        """Render a compact progress indicator for the sidebar"""
+        if not self.workflow_name:
+            return
+        
+        state_file_path = dir_manager.get_state_file_path(self.workflow_name)
+        if not state_file_path.exists():
+            return
+        
+        state_data = dir_manager.load_json(state_file_path)
+        
+        # Running batches count
+        running_count = len([s for s in state_data.get('state_steps', []) 
+                            if s.get('status') in ['uploaded', 'in_progress']])
+        
+        if running_count > 0:
+            st.sidebar.markdown("---")
+            st.sidebar.write("**🔄 Active Progress**")
+            
+            for step in state_data.get('state_steps', []):
+                if step.get('status') in ['uploaded', 'in_progress']:
+                    step_name = step.get('name', 'Unknown')
+                    
+                    # Mini progress indicator
+                    col1, col2 = st.sidebar.columns([3, 1])
+                    with col1:
+                        st.write(f"🔄 {step_name}")
+                    with col2:
+                        if st.button("⚡", key=f"quick_check_{step_name}", help="Quick check"):
+                            self._quick_check_step(step)
+                            st.rerun()
+                    
+                    # Show mini progress bar
+                    if self.batch_tracker and 'batch' in step:
+                        batch_id = step['batch'].get('upload_id')
+                        if batch_id:
+                            batch_data = self.batch_tracker.get_batch_progress(batch_id)
+                            if batch_data:
+                                progress_pct = batch_data.get('progress_pct', 0)
+                                st.progress(progress_pct / 100)
+    
+    def _check_batch_status(self, batch_id):
+        """Check and update batch status"""
+        if self.batch_tracker:
+            self.batch_tracker.update_batch_status(batch_id, force_check=True)
+            st.success(f"✅ Updated status for batch {batch_id[:8]}...")
+    
+    def _cancel_batch(self, batch_step):
+        """Cancel a batch job"""
+        try:
+            from lib.state_managment import cancel_step_batch
+            state_file_path = dir_manager.get_state_file_path(self.workflow_name)
+            result = cancel_step_batch(str(state_file_path), batch_step['name'])
+            st.success(f"✅ {result}")
+        except Exception as e:
+            st.error(f"❌ Failed to cancel batch: {e}")
+    
+    def _quick_check_step(self, step):
+        """Quick check for a running step"""
+        try:
+            from lib.state_managment import complete_running_step
+            state_file_path = dir_manager.get_state_file_path(self.workflow_name)
+            result = complete_running_step(str(state_file_path))
+            st.toast(f"Status: {result[0]}")
+        except Exception as e:
+            st.toast(f"Check failed: {e}")
+    
+    def _format_duration(self, duration):
+        """Format duration in a human-readable way"""
+        total_seconds = int(duration.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        else:
+            return f"{seconds}s"
+    
+    def _estimate_remaining_time(self, batch_data):
+        """Estimate remaining time for batch completion"""
+        progress_pct = batch_data.get('progress_pct', 0)
+        created_time = batch_data.get('created_time')
+        
+        if progress_pct <= 0 or not created_time:
+            return None
+        
+        elapsed = time.time() - created_time
+        estimated_total = elapsed / (progress_pct / 100)
+        remaining = estimated_total - elapsed
+        
+        if remaining > 0:
+            return self._format_duration(timedelta(seconds=remaining))
+        return None
+    
+    def _check_batch_status(self, batch_id):
+        """Check and update batch status"""
+        if self.batch_tracker:
+            self.batch_tracker.update_batch_status(batch_id, force_check=True)
+            st.success(f"✅ Updated status for batch {batch_id[:8]}...")
+
+    def _cancel_batch(self, batch_step):
+        """Cancel a batch job"""
+        try:
+            from lib.state_managment import cancel_step_batch
+            state_file_path = dir_manager.get_state_file_path(self.workflow_name)
+            result = cancel_step_batch(str(state_file_path), batch_step['name'])
+            st.success(f"✅ {result}")
+        except Exception as e:
+            st.error(f"❌ Failed to cancel batch: {e}")
+
+    def _format_duration(self, duration):
+        """Format duration in a human-readable way"""
+        total_seconds = int(duration.total_seconds())
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        else:
+            return f"{seconds}s"
+
+    def _estimate_remaining_time(self, batch_data):
+        """Estimate remaining time for batch completion"""
+        progress_pct = batch_data.get('progress_pct', 0)
+        created_time = batch_data.get('created_time')
+        
+        if progress_pct <= 0 or not created_time:
+            return None
+        
+        elapsed = time.time() - created_time
+        estimated_total = elapsed / (progress_pct / 100)
+        remaining = estimated_total - elapsed
+        
+        if remaining > 0:
+            return self._format_duration(timedelta(seconds=remaining))
         return None
 
-class ToolPalette:
-    """Clean tool palette for adding steps"""
-    
-    def __init__(self):
-        self.llm_tools = get_available_llm_tools()
-        self.code_tools = get_available_code_tools()
-        self.chip_tools = get_available_chips()
-    
-    def render(self):
-        """Render organized tool palette"""
-        if not st.session_state.current_workflow:
-            st.info("Load a workflow to add tools")
-            return
-            
-        st.subheader("🧰 Tools")
-        
-        # Tool categories as tabs
-        tab1, tab2, tab3, tab4 = st.tabs(["🌱 Seed", "🤖 LLM", "⚙️ Code", "🔧 Chip"])
-        
-        with tab1:
-            self._render_seed_section()
-        
-        with tab2:
-            self._render_tool_section("LLM", self.llm_tools, "🤖")
-        
-        with tab3:
-            self._render_tool_section("Code", self.code_tools, "⚙️")
-        
-        with tab4:
-            self._render_tool_section("Chip", self.chip_tools, "🔧")
-    
-    def _render_seed_section(self):
-        """Render seed step section"""
-        st.write("**Start with data generation**")
-        if st.button("🌱 Add Seed Step", key="add_seed", use_container_width=True):
-            st.session_state.show_seed_selector = True
-        
-        # Single data creation
-        st.write("**Or add single data blocks**")
-        if st.button("📊 Add Single Data", key="add_single", use_container_width=True):
-            st.session_state.show_single_data_creator = True
-    
-    def _render_tool_section(self, tool_type, tools, icon):
-        """Render a tool category section"""
-        if not tools:
-            st.info(f"No {tool_type.lower()} tools available")
-            return
-        
-        st.write(f"**Available {tool_type} Tools:**")
-        
-        # Show tools as buttons with descriptions
-        for tool in tools:
-            # Get tool description
-            if tool_type == "LLM":
-                tool_info = prepare_data(tool)
-            elif tool_type == "Code":
-                tool_info = prepare_tool_use(tool)
-            else:  # Chip
-                tool_info = prepare_chip_use(tool)
-            
-            # Create compact tool button with tooltip
-            input_count = len(tool_info.get('in', {}))
-            output_count = len(tool_info.get('out', {}))
-            
-            if st.button(
-                f"{icon} {tool}",
-                key=f"add_{tool_type.lower()}_{tool}",
-                help=f"Inputs: {input_count}, Outputs: {output_count}",
-                use_container_width=True
-            ):
-                # Store selected tool for step creation
-                st.session_state.selected_tool = {
-                    'type': tool_type.lower(),
-                    'name': tool,
-                    'info': tool_info
-                }
-                st.session_state.show_step_creator = True
 
-class PropertiesPanel:
-    """Context-aware properties and data preview panel"""
+# Auto-refresh component for live progress updates
+class ProgressAutoRefresh:
+    """Component for auto-refreshing progress data"""
     
-    def __init__(self, current_workflow):
-        self.current_workflow = current_workflow
+    @staticmethod
+    def setup_auto_refresh(interval_seconds=30):
+        """Setup auto-refresh for progress updates"""
+        # Add auto-refresh script
+        st.markdown(f"""
+        <script>
+        setTimeout(function(){{
+            window.parent.document.dispatchEvent(new KeyboardEvent('keydown', {{key: 'r', ctrlKey: true}}));
+        }}, {interval_seconds * 1000});
+        </script>
+        """, unsafe_allow_html=True)
     
-    def render(self, selected_node_id=None):
-        """Render properties panel based on selection"""
-        st.subheader("⚙️ Properties")
+    @staticmethod
+    def render_refresh_controls():
+        """Render manual refresh controls"""
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            auto_refresh = st.checkbox("🔄 Auto-refresh (30s)", key="auto_refresh_progress")
+        with col2:
+            if st.button("🔄 Refresh Now"):
+                st.rerun()
         
-        if not selected_node_id:
-            self._render_workflow_info()
-        elif selected_node_id.startswith('single-'):
-            self._render_single_data_properties(selected_node_id)
-        elif '-out-' in selected_node_id:
-            self._render_output_properties(selected_node_id)
-        elif '-parent' in selected_node_id:
-            self._render_step_properties(selected_node_id)
-        else:
-            self._render_default_properties()
-    
-    def _render_workflow_info(self):
-        """Show workflow-level information"""
-        if not self.current_workflow:
-            st.info("No workflow loaded")
-            return
-        
-        # Load workflow state
-        state_file_path = dir_manager.get_state_file_path(self.current_workflow)
-        if state_file_path.exists():
-            state_data = dir_manager.load_json(state_file_path)
-            
-            st.write("**Workflow Overview**")
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Steps", len(state_data.get('state_steps', [])))
-                st.metric("Status", state_data.get('status', 'Unknown'))
-            with col2:
-                st.metric("Nodes", len(state_data.get('nodes', [])))
-                running_count = len([s for s in state_data.get('state_steps', []) 
-                                   if s.get('status') in ['uploaded', 'in_progress']])
-                st.metric("Running", running_count)
-    
-    def _render_single_data_properties(self, node_id):
-        """Show single data block properties"""
-        data_name = node_id.replace('single-', '')
-        st.write(f"**Single Data: {data_name}**")
-        
-        # Load the actual data
-        state_file_path = dir_manager.get_state_file_path(self.current_workflow)
-        state_data = dir_manager.load_json(state_file_path)
-        
-        # Find the single data node
-        for node in state_data.get('nodes', []):
-            if node.get('name') == data_name and node.get('state') == 'single_data':
-                st.write(f"**Type:** {node.get('data_type', 'Unknown')}")
-                st.write(f"**Value:**")
-                st.code(str(node.get('file_name', 'No value')))
-                
-                # Show connections
-                if st.button("🗑️ Delete", key=f"delete_single_{data_name}"):
-                    # Remove single data block
-                    state_data['nodes'] = [n for n in state_data['nodes'] 
-                                         if not (n.get('name') == data_name and n.get('state') == 'single_data')]
-                    dir_manager.save_json(state_file_path, state_data)
-                    load_workflow_state(self.current_workflow)
-                    st.rerun()
-                break
-    
-    def _render_output_properties(self, node_id):
-        """Show output data properties with preview"""
-        st.write("**Output Data**")
-        
-        # Load and show data preview
-        state_file_path = dir_manager.get_state_file_path(self.current_workflow)
-        state_data = dir_manager.load_json(state_file_path)
-        
-        if is_completed_output_marker(node_id, state_data):
-            preview_data = load_marker_preview_data(node_id, state_data)
-            
-            if preview_data and 'error' not in preview_data:
-                st.json(preview_data)
-            else:
-                st.error("Could not load data preview")
-        else:
-            st.info("Output not yet available")
-    
-    def _render_step_properties(self, node_id):
-        """Show step properties"""
-        step_number = int(node_id.split('-')[0])
-        st.write(f"**Step {step_number} Properties**")
-        
-        # Load step data
-        state_file_path = dir_manager.get_state_file_path(self.current_workflow)
-        state_data = dir_manager.load_json(state_file_path)
-        
-        if step_number <= len(state_data.get('state_steps', [])):
-            step_data = state_data['state_steps'][step_number - 1]
-            
-            st.write(f"**Name:** {step_data.get('name', 'Unknown')}")
-            st.write(f"**Type:** {step_data.get('type', 'Unknown')}")
-            st.write(f"**Status:** {step_data.get('status', 'Unknown')}")
-            
-            if step_data.get('tool_name'):
-                st.write(f"**Tool:** {step_data['tool_name']}")
-            
-            # Show inputs/outputs count
-            inputs = step_data.get('data', {}).get('in', {})
-            outputs = step_data.get('data', {}).get('out', {})
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Inputs", len(inputs))
-            with col2:
-                st.metric("Outputs", len(outputs))
-    
-    def _render_default_properties(self):
-        """Default properties view"""
-        st.info("Select a node to view its properties")
+        if auto_refresh:
+            time.sleep(30)
+            st.rerun()
 
-class StepCreator:
-    """Simplified step creation interface"""
-    
-    def render(self):
-        """Render step creation form"""
-        if not st.session_state.get('selected_tool'):
-            return
-        
-        tool_info = st.session_state.selected_tool
-        st.subheader(f"Create {tool_info['type'].upper()} Step")
-        
-        with st.form("create_step_form"):
-            # Step name
-            step_name = st.text_input(
-                "Step Name:",
-                value=f"{tool_info['name']}_step",
-                key="new_step_name"
-            )
-            
-            # Test mode option
-            if tool_info['type'] in ['llm', 'chip']:
-                test_mode = st.checkbox("🧪 Test Mode (5 entries only)", key="test_mode")
-            else:
-                test_mode = False
-            
-            # Show tool requirements
-            input_reqs = tool_info['info'].get('in', {})
-            if input_reqs:
-                st.write("**Required Inputs:**")
-                for param_name, param_type in input_reqs.items():
-                    st.write(f"• {param_name}: {param_type}")
-                st.info("Connect inputs after adding the step to the workflow")
-            
-            # Form buttons
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.form_submit_button("➕ Add Step", use_container_width=True):
-                    self._create_step(tool_info, step_name, test_mode)
-                    st.session_state.selected_tool = None
-                    st.session_state.show_step_creator = False
-                    st.rerun()
-            
-            with col2:
-                if st.form_submit_button("Cancel", use_container_width=True):
-                    st.session_state.selected_tool = None
-                    st.session_state.show_step_creator = False
-                    st.rerun()
-    
-    def _create_step(self, tool_info, step_name, test_mode):
-        """Create the step"""
-        try:
-            # Use existing logic but simplified
-            add_pending_step(tool_info['type'], step_name, tool_info['name'])
-            
-            # Add test mode to the pending step
-            if test_mode and st.session_state.pending_steps:
-                st.session_state.pending_steps[-1]['test_mode'] = test_mode
-            
-            set_message('success', f"✅ Added {tool_info['type']} step: {step_name}")
-            
-        except Exception as e:
-            set_message('error', f"❌ Error creating step: {e}")
+
 
 def render_workflow_creation_dialog():
     """Simple workflow creation dialog"""
@@ -2644,34 +2730,48 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             st.rerun()
 
     # Running batch status (non-refreshing display)
+    # Replace the existing running batch status section with this:
     if running_batches:
-        st.subheader("⏳ Running Batches")
-        for batch_step in running_batches:
-            with st.container():
-                col1, col2, col3 = st.columns([3, 1, 1])
-                with col1:
-                    st.write(f"**{batch_step['name']}** - {batch_step.get('tool_name', 'Unknown Tool')}")
-                    if 'batch' in batch_step and batch_step['batch'].get('upload_id'):
-                        st.caption(f"Batch ID: {batch_step['batch']['upload_id']}")
-                with col2:
-                    if batch_step['status'] == 'uploaded':
-                        st.markdown("🔵 **Uploaded**")
-                    elif batch_step['status'] == 'in_progress':
-                        st.markdown("🟡 **In Progress**")
-                    else:
-                        st.markdown(f"⚪ **{batch_step['status'].title()}**")
+        # Add progress tracking toggle
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.subheader("🚀 Running Batches")
+        with col2:
+            enhanced_view = st.toggle("Enhanced Progress", key="enhanced_progress_toggle")
+        
+        if enhanced_view:
+            # Use enhanced progress tracking
+            progress_ui = ProgressTrackerUI(st.session_state.current_workflow)
+            progress_ui._render_batch_progress(current_state_data)
+        else:
+            # Keep your existing simple view
+            for batch_step in running_batches:
+                with st.container():
+                    col1, col2, col3 = st.columns([3, 1, 1])
+                    with col1:
+                        st.write(f"**{batch_step['name']}** - {batch_step.get('tool_name', 'Unknown Tool')}")
+                        if 'batch' in batch_step and batch_step['batch'].get('upload_id'):
+                            st.caption(f"Batch ID: {batch_step['batch']['upload_id']}")
+                    with col2:
+                        if batch_step['status'] == 'uploaded':
+                            st.markdown("🔄 **Uploaded**")
+                        elif batch_step['status'] == 'in_progress':
+                            st.markdown("⏳ **In Progress**")
+                        else:
+                            st.markdown(f"⚫ **{batch_step['status'].title()}**")
 
-                with col3:
-                    if st.button("🔍 Check", key=f"check_{batch_step['name']}"):
-                        try:
-                            result = complete_running_step(state_file_path)
-                            st.toast(f"Batch result: {result}")
-                            # Manual refresh of visual state only
-                            load_workflow_state(st.session_state.current_workflow)
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Error: {e}")
-        st.divider()
+                    with col3:
+                        if st.button("🔄 Check", key=f"check_{batch_step['name']}"):
+                            try:
+                                result = complete_running_step(state_file_path)
+                                st.toast(f"Batch result: {result}")
+                                # Manual refresh of visual state only
+                                load_workflow_state(st.session_state.current_workflow)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+                    st.divider()
+
 
     # Data preview panel (full width at bottom)
     render_data_preview_section()
