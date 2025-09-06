@@ -151,7 +151,7 @@ WHAT IT DOES:
 ✅ Sets up your environment
 ✅ Launches the application
 
-Need help? Visit: https://github.com/your-repo/canis-lab
+Need help? Visit: https://github.com/crasyK/Canis.lab
 
 Enjoy creating synthetic datasets! 🚀
 """
@@ -178,7 +178,7 @@ WHAT IT DOES:
 ✅ Sets up your environment
 ✅ Launches the application
 
-Need help? Visit: https://github.com/your-repo/canis-lab
+Need help? Visit: https://github.com/crasyK/Canis.lab
 
 Enjoy creating synthetic datasets! 🚀
 """
@@ -207,7 +207,7 @@ WHAT IT DOES:
 ✅ Sets up your environment
 ✅ Launches the application
 
-Need help? Visit: https://github.com/your-repo/canis-lab
+Need help? Visit: https://github.com/crasyK/Canis.lab
 
 Enjoy creating synthetic datasets! 🚀
 """

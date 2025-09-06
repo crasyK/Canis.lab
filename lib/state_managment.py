@@ -194,7 +194,7 @@ empty_marker = {
 
 def create_state(state_file_path,name):
     """Create a new workflow state using DirectoryManager"""
-    filename = name + "_" + str(datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+    filename = name
     
     # Use DirectoryManager to create workflow directory structure
     workflow_dir = dir_manager.ensure_workflow_directory(filename)

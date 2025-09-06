@@ -38,9 +38,7 @@
   ('canis_lab_installer',
    '/home/mak-ko/Projects/LLM-Synth/LLM-Synth/canis_lab_installer.py',
    'PYSOURCE'),
-  ('libpython3.10.so.1.0',
-   '/lib/x86_64-linux-gnu/libpython3.10.so.1.0',
-   'BINARY'),
+  ('libpython3.10.so', '/lib/x86_64-linux-gnu/libpython3.10.so', 'BINARY'),
   ('lib-dynload/_contextvars.cpython-310-x86_64-linux-gnu.so',
    '/usr/lib/python3.10/lib-dynload/_contextvars.cpython-310-x86_64-linux-gnu.so',
    'EXTENSION'),
@@ -105,8 +103,8 @@
  [],
  False,
  False,
- 1757171722,
+ 1757191330,
  [('run',
    '/home/mak-ko/Projects/LLM-Synth/LLM-Synth/.venv/lib/python3.10/site-packages/PyInstaller/bootloader/Linux-64bit-intel/run',
    'EXECUTABLE')],
- '/lib/x86_64-linux-gnu/libpython3.10.so.1.0')
+ '/lib/x86_64-linux-gnu/libpython3.10.so')

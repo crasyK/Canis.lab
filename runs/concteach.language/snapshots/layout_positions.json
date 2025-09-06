@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-05T15:54:58.217958",
+  "timestamp": "2025-09-06T22:07:00.345154",
   "workflow_name": "concteach.language",
   "positions": {
     "1-parent-0": {
@@ -255,7 +255,11 @@
         "y": 53.514713260478665
       },
       "data": {
-        "content": "combined_data"
+        "content": "combined_data",
+        "prev_pos": [
+          455.7677281042754,
+          53.514713260478665
+        ]
       }
     },
     "5-out-1": {
@@ -264,7 +268,11 @@
         "y": 53.514713260478665
       },
       "data": {
-        "content": "/home/m..."
+        "content": "/home/m...",
+        "prev_pos": [
+          575.7677281042754,
+          53.514713260478665
+        ]
       }
     }
   }

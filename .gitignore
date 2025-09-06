@@ -7,4 +7,5 @@
 /outputs/
 /llama.cpp/
 .env
-**/__pycache__/ 
+**/__pycache__/
+/build_temp/
