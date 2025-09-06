@@ -24,6 +24,86 @@ from lib.directory_manager import dir_manager
 # Page config
 st.set_page_config(page_title="Workflow Editor", layout="wide")
 
+def get_layout_snapshot_path(workflow_name):
+    """Get path for layout snapshot file"""
+    workflow_path = dir_manager.get_workflow_path(workflow_name)
+    snapshots_dir = workflow_path / "snapshots"
+    snapshots_dir.mkdir(exist_ok=True)
+    return snapshots_dir / "layout_positions.json"
+
+def save_node_positions_to_snapshot(workflow_name, flow_state):
+    """Save current node positions to persistent snapshot file"""
+    if not flow_state or not flow_state.nodes:
+        return
+    
+    try:
+        layout_file = get_layout_snapshot_path(workflow_name)
+        position_data = {
+            'timestamp': datetime.now().isoformat(),
+            'workflow_name': workflow_name,
+            'positions': {}
+        }
+        
+        for node in flow_state.nodes:
+            position_data['positions'][node.id] = {
+                'position': node.position,
+                'data': node.data.copy() if hasattr(node, 'data') else {}
+            }
+        
+        # Save to file (persistent across restarts)
+        dir_manager.save_json(layout_file, position_data)
+        print(f"💾 Saved layout positions for {workflow_name}")
+        
+    except Exception as e:
+        print(f"❌ Error saving layout positions: {e}")
+
+def restore_node_positions_from_snapshot(workflow_name, nodes):
+    """Restore node positions from persistent snapshot file"""
+    try:
+        layout_file = get_layout_snapshot_path(workflow_name)
+        
+        if not layout_file.exists():
+            print(f"📍 No layout snapshot found for {workflow_name}")
+            return nodes
+        
+        position_data = dir_manager.load_json(layout_file)
+        positions = position_data.get('positions', {})
+        
+        restored_count = 0
+        for node in nodes:
+            if node.id in positions:
+                cached_data = positions[node.id]
+                node.position = cached_data['position']
+                
+                # Restore prev_pos for drag tracking
+                if hasattr(node, 'data'):
+                    if 'prev_pos' in cached_data['data']:
+                        node.data['prev_pos'] = cached_data['data']['prev_pos']
+                    else:
+                        # Initialize prev_pos with current position
+                        node.data['prev_pos'] = tuple(dict(cached_data['position']).values())
+                
+                restored_count += 1
+        
+        print(f"📍 Restored {restored_count} node positions for {workflow_name}")
+        return nodes
+        
+    except Exception as e:
+        print(f"❌ Error restoring layout positions: {e}")
+        return nodes
+
+def clear_layout_snapshot(workflow_name):
+    """Clear layout snapshot for a workflow"""
+    try:
+        layout_file = get_layout_snapshot_path(workflow_name)
+        if layout_file.exists():
+            layout_file.unlink()
+            print(f"🗑️ Cleared layout snapshot for {workflow_name}")
+            return True
+    except Exception as e:
+        print(f"❌ Error clearing layout snapshot: {e}")
+    return False
+
 class ProgressTrackerUI:
     """UI component for displaying progress tracking information"""
     
@@ -1652,6 +1732,7 @@ def create_single_data_edges_from_state(state_data, flow_state):
     
     return edges
 
+# Find this section in your load_workflow_state function:
 def load_workflow_state(workflow_name):
     """Load workflow state and recreate visual flow with proper edge restoration"""
     try:
@@ -1664,18 +1745,15 @@ def load_workflow_state(workflow_name):
         if not state_file_path.exists():
             set_message('error', f"❌ Workflow state file not found: {workflow_name}")
             return None
-            
+        
         state_data = dir_manager.load_json(state_file_path)
         
         # Create step instances and nodes from ALL steps (not just completed ones)
         from lib.app_objects import step
-        StepClass.reset_class_state()  # Clear existing instances
+        StepClass.reset_class_state() # Clear existing instances
         
         nodes = []
         for step_data in state_data.get('state_steps', []):
-            # Remove the status filter - show ALL steps
-            # if step_data.get('status') == 'completed':  # <-- REMOVE THIS LINE
-            
             # Calculate markers_map from step data
             inputs = step_data.get('data', {}).get('in', {})
             outputs = step_data.get('data', {}).get('out', {})
@@ -1684,7 +1762,7 @@ def load_workflow_state(workflow_name):
             step_instance = step(
                 markers_map=markers_map,
                 step_type=step_data.get('type', 'code'),
-                status=step_data.get('status', 'completed'),  # Pass the actual status
+                status=step_data.get('status', 'completed'),
                 step_data=step_data.get('data', {}),
                 step_name=step_data.get('name', f'Step {len(nodes)+1}'),
                 nodes_info=state_data.get('nodes', [])
@@ -1694,7 +1772,9 @@ def load_workflow_state(workflow_name):
         # Create single data nodes
         single_data_nodes = create_single_data_nodes_from_state(state_data)
         nodes.extend(single_data_nodes)
-        
+
+        nodes = restore_node_positions_from_snapshot(workflow_name, nodes)
+
         # Create edges between steps
         edges = StepClass.create_edges_between_steps()
         
@@ -1721,7 +1801,6 @@ def load_workflow_state(workflow_name):
         import traceback
         traceback.print_exc()
         return None
-
 
 
 def save_single_data_connections_to_state(state_file_path, connections):
@@ -2679,14 +2758,13 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                     st.rerun()
         
 
-    
     with col2:
         # Workflow visualization
-        st.subheader("📊 Workflow Visualization")
+        st.subheader("🔄 Workflow Visualization")
         updated_flow_state = streamlit_flow(
             'workflow_editor',
             st.session_state.flow_state,
-            fit_view=True,
+            fit_view=False,  
             height=500,
             enable_node_menu=False,
             enable_edge_menu=False,
@@ -2694,7 +2772,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             get_edge_on_click=True,
             get_node_on_click=True,
             show_minimap=False,
-            show_controls=False,
+            show_controls=True,
             hide_watermark=True,
             allow_new_edges=True,
             min_zoom=0.1,
@@ -2706,12 +2784,12 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             if handle_marker_click(selected_id, current_state_data):
                 st.rerun()
 
-        # Handle node updates (dragging) - NO FORCED REFRESH
+        # Handle node updates (dragging)
         nodes_updated = False
         for node in updated_flow_state.nodes:
             if 'parent' in node.id:
                 current_pos = tuple(dict(node.position).values())
-                prev_pos = tuple(node.data["prev_pos"])
+                prev_pos = tuple(node.data.get("prev_pos", current_pos))
                 if current_pos != prev_pos:
                     step_number = int(node.id.split('-')[0])
                     step_instance = StepClass.get_instance_by_number(step_number)
@@ -2724,8 +2802,13 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                         updated_flow_state.nodes.extend(updated_nodes)
                         nodes_updated = True
 
-        # Always keep the SAME state object reference
+        # Always update flow state
         st.session_state.flow_state = updated_flow_state
+
+        # Save to persistent snapshot
+        if updated_flow_state and st.session_state.current_workflow:
+            save_node_positions_to_snapshot(st.session_state.current_workflow, updated_flow_state)
+
         if nodes_updated:
             st.rerun()
 
