@@ -9,3 +9,8 @@
 .env
 **/__pycache__/
 /build_temp/
+/build/
+appimagetool-x86_64.AppImage
+Canis.lab_Installer-x86_64.AppImage
+CanisLab_Installer.AppDir
+/release/

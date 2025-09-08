@@ -219,6 +219,73 @@ Enjoy creating synthetic datasets! 🚀
     print(f"✅ Release package ready in 'release/' folder")
     print(f"📁 Files: {exe_name}, {readme_name}")
 
+import os
+
+def build_appimage():
+    system = platform.system().lower()
+    if system != "linux":
+        print("ℹ️ AppImage build is only supported on Linux.")
+        return False
+
+    release_dir = Path("release")
+    release_dir.mkdir(exist_ok=True)
+    exe_path = release_dir / "CanisLab_Installer"  # built by PyInstaller
+
+    if not exe_path.exists():
+        print("❌ Missing CanisLab_Installer binary. Run build_executable() first.")
+        return False
+
+    appdir = Path("CanisLab_Installer.AppDir")
+    if appdir.exists():
+        shutil.rmtree(appdir)
+    (appdir / "usr" / "bin").mkdir(parents=True, exist_ok=True)
+    (appdir / "usr" / "share" / "applications").mkdir(parents=True, exist_ok=True)
+    (appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps").mkdir(parents=True, exist_ok=True)
+
+    # Copy binary
+    shutil.copy2(exe_path, appdir / "usr" / "bin" / "CanisLab_Installer")
+    os.chmod(appdir / "usr" / "bin" / "CanisLab_Installer", 0o755)
+
+    # Icon (optional)
+    icon_src = Path("icon.png")
+    if icon_src.exists():
+        shutil.copy2(icon_src, appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "canis-lab.png")
+
+    # AppRun
+    apprun = appdir / "AppRun"
+    apprun.write_text("""#!/bin/sh
+HERE="$(dirname "$(readlink -f "$0")")"
+exec "$HERE/usr/bin/CanisLab_Installer" "$@"
+""")
+    os.chmod(apprun, 0o755)
+
+    # Desktop entry
+    desktop = appdir / "canis-lab.desktop"
+    desktop.write_text(f"""[Desktop Entry]
+Type=Application
+Name=Canis.lab Installer
+Comment=Install and launch Canis.lab
+Exec=CanisLab_Installer
+Icon=canis-lab
+Terminal=true
+Categories=Development;
+""")
+
+    # Build AppImage
+    tool = Path("/home/mak-ko/Projects/LLM-Synth/LLM-Synth/appimagetool")
+    if not tool.exists():
+        print("❌ appimagetool not found. Download it from AppImage releases and place as ./appimagetool")
+        return False
+
+    out_path = release_dir / "CanisLab_Installer-x86_64.AppImage"
+    try:
+        subprocess.run([str(tool), str(appdir), str(out_path)], check=True)
+        print(f"✅ AppImage created: {out_path}")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ AppImage build failed: {e}")
+        return False
+
 def main():
     """Main build process"""
     print("🔨 Canis.lab Executable Builder")
@@ -240,7 +307,9 @@ def main():
     
     # Create release package
     create_release_package()
-    
+
+    build_appimage()
+
     print("\n🎉 SUCCESS!")
     print("Your standalone installer is ready!")
     print("Users can now double-click to install Canis.lab without Python!")

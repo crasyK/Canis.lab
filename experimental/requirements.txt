@@ -1,0 +1,10 @@
+unsloth 
+datasets 
+transformers 
+peft 
+trl 
+huggingface_hub 
+dotenv 
+tqdm 
+matplotlib 
+pandas

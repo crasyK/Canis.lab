@@ -38,16 +38,6 @@ available_tools_global = {
             "in": {"segregated_data": {"json":"data"}, "label": {"str":"single"}}, 
             "out": {"selected_data": {"json":"data"}}
         }},
-    "count": {
-        "data_markers": {
-            "in": {"data": {"json":"data"}},
-            "out": {"counts": {"int":"single"}}
-        }},
-    "percentage": {
-        "data_markers": {
-            "in": {"data": {"json":"data"}, "total": {"int":"single"}},
-            "out": {"percentage": {"int":"single"}} #0-100 rounded to nearest integer
-    }},
 }
 
 def get_available_code_tools():
@@ -170,10 +160,12 @@ def bind(structured_content, key_name):
 
 def finalize(data):
     processed_data = []
-    for i, item in enumerate(data):
+    for i in sorted(data.keys()):
+        item = data[i]
         processed_data.append({
             "id": i,
-            "content": item
+            # Serialize the 'content' (which is likely a list of dicts) into a JSON string
+            "content": json.dumps(item)
         })
         
     finalized_dataset = Dataset.from_dict({
@@ -194,15 +186,6 @@ def segregate(data, classification, labels):
 def select(segregated_data, label):
     return segregated_data.get(label, dict())
 
-def count(data):
-    return len(list(data.keys()))
-
-def percentage(data, total):
-    if total == 0:
-        return 0
-    count = len(list(data.keys()))
-    return round((count / total) * 100)
-
 def expand(single, data_to_adapt_to):
     return [single]*len(data_to_adapt_to)
 
@@ -212,8 +195,6 @@ REGISTRY: dict[str, Callable[..., Any]] = {
     "bind": bind,
     "segregate": segregate,
     "select": select,
-    "count": count,
-    "percentage": percentage,
     "expand": expand,
     "combine": combine
 }
