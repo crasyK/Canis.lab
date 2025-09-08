@@ -1,13 +1,10 @@
-Got it! Let me create the README.md content directly for you:
-
-## README.md for Canis.lab
-
-```markdown
 # Canis.lab 🧬
 
 **Advanced Synthetic Dataset Generation Platform**
 
 Canis.lab is a powerful Streamlit application that enables users to create sophisticated synthetic datasets through an intuitive two-stage workflow: **Seed Architect** for dialogue-driven seed file creation and **Workflow Editor** for visual data processing pipelines.
+
+**🔥🔥🔥 FOR RESULTS PLEASE CHECK OUT CANIS.TEACH ON HUGGINGFACE: https://huggingface.co/CanisAI 🔥🔥🔥**
 
 ## 🚀 Quick Start
 
@@ -35,7 +32,7 @@ Canis.lab is a powerful Streamlit application that enables users to create sophi
 
 4. Run the application:
    ```bash
-   streamlit run Home.py
+   streamlit run app.py
    ```
 
 ## 🏗️ Core Components
@@ -207,7 +204,7 @@ All use (commercial and non-commercial) must include proper attribution to Canis
 
 ---
 
-**Copyright (c) 2024 [Your Name/Company]. All rights reserved.**
+**Copyright (c) 2024 [Marko Nedilko]. All rights reserved.**
 
 
 ## 🆘 Support
