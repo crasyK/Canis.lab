@@ -268,9 +268,6 @@ def get_data_from_marker_data_in(state_file, data_in, test_mode=False):
                 if node["name"] == value and node.get("state") == "single_data":
                     data_content[key] = node["file_name"]
                     break
-            # If we can't load from file, use the file_name as content (fallback)
-            
-        
 
     return data_content
         
@@ -574,20 +571,11 @@ def use_llm_tool(state_file, custom_name, tool_name, reference_dict, test_mode=F
     except Exception as e:
         print(f"⚠️  Failed to create snapshot: {e}")
     
-    # 🔍 DEBUG: Print what connections were passed
-    print(f"🔍 DEBUG - Parsing step connections:")
-    print(f"   tool_name: {tool_name}")
-    print(f"   reference_dict: {reference_dict}")
-    print(f"   test_mode: {test_mode}")
-    
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
 
     data_content, addresses = get_marker_data_and_addresses(state_file, reference_dict, test_mode=test_mode)
 
-    # 🔍 DEBUG: Print what data was resolved
-    print(f"🔍 DEBUG - Resolved data:")
-    print(f"   addresses: {addresses}")
     state["status"] = "running"
     
     new_step = empty_step_llm.copy()
@@ -618,10 +606,10 @@ def use_llm_tool(state_file, custom_name, tool_name, reference_dict, test_mode=F
     
     # Use DirectoryManager for data output path
     data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{output_markers['name']}", "extracted")
-    new_step["data"]["out"] = {output_markers["name"]: str(data_output_path)}
-    
+    new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(data_output_path)}
+
     # Create marker
-    state["nodes"].append(create_markers(output_markers["name"], new_step["data"]["out"][output_markers["name"]], output_markers["type"], "uploaded"))
+    state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"], "uploaded"))
     
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
@@ -670,14 +658,14 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
         # Save the dataset using DirectoryManager
         if isinstance(dataset_result, Dataset):
             saved_info = dir_manager.save_huggingface_dataset(workflow_name, dataset_result, version_name)
-            new_step["data"]["out"] = {output_markers["name"]: saved_info['version_dir']}
+            new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): saved_info['version_dir']}
         else:
             # For non-Dataset results, save to datasets directory
             version_dir = dir_manager.create_dataset_version_dir(workflow_name, version_name)
             save_code_tool_results(tool_name, dataset_result, str(version_dir))
-            new_step["data"]["out"] = {output_markers["name"]: str(version_dir)}
+            new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(version_dir)}
         
-        state["nodes"].append(create_markers(output_markers["name"], new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
+        state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
         new_step["status"] = "completed"
         state["status"] = "finalized"
     else:
@@ -687,9 +675,9 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
         # Execute and save results
         result = execute_code_tool(tool_name, data_content)
         save_code_tool_results(tool_name, result, str(data_output_path))
-        
-        new_step["data"]["out"] = {output_markers["name"]: str(data_output_path)}
-        state["nodes"].append(create_markers(output_markers["name"], new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
+
+        new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(data_output_path)}
+        state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
         new_step["status"] = "completed"
         state["status"] = "completed"
     
@@ -736,7 +724,7 @@ def use_chip(state_file, custom_name, chip_name, reference_dict, test_mode=False
         output_paths[key] = str(data_output_path)
         
         # Create each marker
-        state["nodes"].append(create_markers(key, output_paths[key], value, "uploaded"))
+        state["nodes"].append(create_markers(str({new_step['name']} + "_" + key), output_paths[key], value, "uploaded"))
 
     new_step["data"]["out"] = output_paths
     new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name) / f"{new_step['name']}_results.jsonl")

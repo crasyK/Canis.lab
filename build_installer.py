@@ -272,14 +272,14 @@ Categories=Development;
 """)
 
     # Build AppImage
-    tool = Path("/home/mak-ko/Projects/LLM-Synth/LLM-Synth/appimagetool")
+    tool = Path("/home/mak-ko/Projects/LLM-Synth/LLM-Synth/appimagetool-x86_64.AppImage")
     if not tool.exists():
         print("❌ appimagetool not found. Download it from AppImage releases and place as ./appimagetool")
         return False
 
     out_path = release_dir / "CanisLab_Installer-x86_64.AppImage"
     try:
-        subprocess.run([str(tool), str(appdir), str(out_path)], check=True)
+        subprocess.run("ARCH=x86_64 "  + str(tool) + " " + str(appdir), check=True)
         print(f"✅ AppImage created: {out_path}")
         return True
     except subprocess.CalledProcessError as e:
