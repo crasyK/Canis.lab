@@ -9,32 +9,80 @@ Canis.lab is a powerful Streamlit application that enables users to create sophi
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
 - OpenAI API key
+- python 3.8+
 
-### Installation
-1. Clone the repository:
+### Easy Installation (Recommended)
+
+#### Download from GitHub Releases
+1. Go to the [Releases page](https://github.com/crasyK/Canis.lab/releases)
+2. Download the latest release for your operating system:
+   - **Windows**: Download `CanisLab_Installer.exe` 
+   - **Linux**: Download `CanisLab_Installer.lab.AppImage`
+
+#### Windows Installation
+1. **Download & Run**:
+   - Download `CanisLab_Installer.exe` from the releases page
+   - Double-click the executable to run - no installation required!
+
+2. **First Launch Setup**:
+   - Enter your OpenAI API key when prompted
+   - The application will create a desktop shortcut
+
+#### Linux Installation
+1. **Download & Make Executable**: 
    ```bash
-   git clone <repository-url>
-   cd canis-lab
+   # Download the AppImage from releases page
+   chmod +x CanisLab_Installer.lab.AppImage
    ```
 
-2. Install dependencies:
+2. **Run the Application**: 
+   ```bash
+   ./CanisLab_Installer.lab.AppImage
+   ```
+   Or simply double-click the file in your file manager
+
+3. **First Launch Setup**:
+   - Enter your OpenAI API key when prompted
+   - The application will create a desktop shortcut
+
+### Alternative: Manual Installation (Advanced Users)
+
+If you prefer to run from source or the executables don't work on your system:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/crasyK/Canis.lab.git
+   cd Canis.lab
+   ```
+
+2. Create virtual environment:
+   ```bash
+   # Linux/macOS
+   python3 -m venv .venv
+   source .venv/bin/activate
+   
+   # Windows
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
+
+3. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Set up environment variables:
+4. Set up environment variables:
    ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
+   nano .env
+   # Edit .env: OPENAI_API_KEY = with your OpenAI API key
    ```
 
-4. Run the application:
+5. Run the application:
    ```bash
    streamlit run app.py
    ```
-
+   
 ## 🏗️ Core Components
 
 ### Seed Architect
@@ -211,7 +259,6 @@ All use (commercial and non-commercial) must include proper attribution to Canis
 
 For issues and questions:
 - Check the GitHub Issues page
-- Review the troubleshooting section
 - Contact the development team
 
 ---
