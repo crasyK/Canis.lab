@@ -236,7 +236,7 @@ def install_with_activation_script(venv_path, requirements_file):
         cmd = command
     else:
         activate_script = venv_path / "bin" / "activate"
-        command = f'. "{activate_script}" && pip install -r "{requirements_file}"'
+        command = f'source "{activate_script}" && pip install -r "{requirements_file}"'
         shell_args = {}
         cmd = ['bash', '-c', command]
     
@@ -265,6 +265,78 @@ def install_with_activation_script(venv_path, requirements_file):
     
     except Exception as e:
         print_error(f"Failed to install with activation script: {e}", exit_code=None)
+
+def create_windows_shortcut_powershell(script_path, install_path, icon_path):
+    """Creates a Windows shortcut using PowerShell."""
+    desktop_path = Path.home() / "Desktop"
+    shortcut_path = desktop_path / f"{APP_NAME}.lnk"
+    
+    # PowerShell script to create shortcut
+    ps_script = f'''
+$WshShell = New-Object -comObject WScript.Shell
+$Shortcut = $WshShell.CreateShortcut("{shortcut_path}")
+$Shortcut.TargetPath = "{script_path}"
+$Shortcut.WorkingDirectory = "{install_path}"
+$Shortcut.Description = "Launch {APP_NAME}"
+'''
+    
+    # Add icon if it exists
+    if icon_path and icon_path.exists():
+        ps_script += f'$Shortcut.IconLocation = "{icon_path}"\n'
+    
+    ps_script += '$Shortcut.Save()'
+    
+    try:
+        # Run PowerShell command
+        subprocess.run([
+            "powershell", "-Command", ps_script
+        ], check=True, capture_output=True, text=True)
+        
+        return shortcut_path.exists()
+    except subprocess.CalledProcessError as e:
+        print_warning(f"PowerShell shortcut creation failed: {e}")
+        return False
+
+def create_windows_shortcut_vbs(script_path, install_path, icon_path):
+    """Creates a Windows shortcut using VBScript as fallback."""
+    desktop_path = Path.home() / "Desktop"
+    shortcut_path = desktop_path / f"{APP_NAME}.lnk"
+    
+    # Create temporary VBS script
+    vbs_content = f'''
+Set WshShell = CreateObject("WScript.Shell")
+Set oShellLink = WshShell.CreateShortcut("{shortcut_path}")
+oShellLink.TargetPath = "{script_path}"
+oShellLink.WorkingDirectory = "{install_path}"
+oShellLink.Description = "Launch {APP_NAME}"
+'''
+    
+    # Add icon if it exists
+    if icon_path and icon_path.exists():
+        vbs_content += f'oShellLink.IconLocation = "{icon_path}"\n'
+    
+    vbs_content += 'oShellLink.Save'
+    
+    # Write temporary VBS file
+    temp_vbs = install_path / "create_shortcut.vbs"
+    try:
+        temp_vbs.write_text(vbs_content, encoding='utf-8')
+        
+        # Run the VBS script
+        subprocess.run([
+            "cscript", "//NoLogo", str(temp_vbs)
+        ], check=True, capture_output=True, text=True, cwd=install_path)
+        
+        # Clean up
+        temp_vbs.unlink()
+        
+        return shortcut_path.exists()
+    except Exception as e:
+        print_warning(f"VBScript shortcut creation failed: {e}")
+        # Clean up on failure
+        if temp_vbs.exists():
+            temp_vbs.unlink()
+        return False
 
 def prompt_for_api_key(install_path):
     """Asks the user for their OpenAI API key and saves it to the .env file."""
@@ -312,11 +384,10 @@ pause
     else:  # Linux & macOS
         script_name = f"run_{APP_NAME.lower().replace('.', '_')}.sh"
         if has_venv:
-            # Use POSIX-compliant '.' instead of 'source', and explicitly use bash
             script_content = f"""#!/bin/bash
 cd "$(dirname "$0")"
 echo "Activating virtual environment and starting {APP_NAME}..."
-. .venv/bin/activate
+source .venv/bin/activate
 echo "Launching Streamlit..."
 streamlit run app.py
 """
@@ -341,19 +412,18 @@ streamlit run app.py
         print_warning(f"Icon file '{icon_path}' not found. Shortcut will not have an icon.")
 
     if system == "Windows":
-        try:
-            import winshell
-            desktop = winshell.desktop()
-            link_filepath = os.path.join(desktop, f"{APP_NAME}.lnk")
-            with winshell.shortcut(link_filepath) as shortcut:
-                shortcut.path = str(script_path)
-                shortcut.working_directory = str(install_path)
-                if icon_path.exists():
-                    shortcut.icon_location = (str(icon_path), 0)
-                shortcut.description = f"Launch {APP_NAME}"
+        # Try PowerShell method first
+        success = create_windows_shortcut_powershell(script_path, install_path, icon_path)
+        
+        if not success:
+            print("   PowerShell method failed, trying VBScript...")
+            success = create_windows_shortcut_vbs(script_path, install_path, icon_path)
+        
+        if success:
             print_success("Windows desktop shortcut created.")
-        except (ImportError, Exception) as e:
-            print_warning(f"Could not create Windows shortcut: {e}")
+        else:
+            print_warning("Could not create Windows shortcut automatically.")
+            print_warning(f"You can manually create a shortcut to: {script_path}")
 
     elif system == "Linux":
         desktop_file_dir = Path.home() / ".local/share/applications"
