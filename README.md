@@ -204,7 +204,7 @@ All use (commercial and non-commercial) must include proper attribution to Canis
 
 ---
 
-**Copyright (c) 2024 [Your Name/Company]. All rights reserved.**
+**Copyright (c) 2024 [Marko Nedilko]. All rights reserved.**
 
 
 ## 🆘 Support
