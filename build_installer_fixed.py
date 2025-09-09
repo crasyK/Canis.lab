@@ -95,8 +95,7 @@ def build_executable():
 
     if system == "Windows" and Path(ICON_ICO).exists():
         pyinstaller_cmd.extend(["--icon", ICON_ICO])
-    # Note: PyInstaller on Linux/macOS doesn't use .ico. The icon is handled by the .desktop file or .app bundle.
-
+    
     pyinstaller_cmd.append(INSTALLER_SCRIPT)
 
     print("   Running PyInstaller...")
@@ -112,7 +111,7 @@ def build_executable():
 
 def download_appimagetool():
     """Downloads the AppImage tool if not present."""
-    tool_path = Path("./appimagetool-x86_64.AppImage")
+    tool_path = Path("/home/mak-ko/Projects/LLM-Synth/LLM-Synth/appimagetool-x86_64.AppImage")
     if not tool_path.exists():
         print("   AppImageTool not found. Downloading...")
         url = "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage"
@@ -136,19 +135,13 @@ def build_appimage():
     appdir = Path(f"{APP_NAME}.AppDir")
     if appdir.exists():
         shutil.rmtree(appdir)
+    appdir.mkdir()
 
-    # Structure the AppDir
-    bin_dir = appdir / "usr" / "bin"
-    bin_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(RELEASE_DIR / APP_NAME, bin_dir / APP_NAME)
+    # Define icon name and desktop file name
+    icon_name = APP_NAME.lower()
+    desktop_filename = f"{icon_name}.desktop"
 
-    # Copy icon
-    icon_dir = appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
-    icon_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copy(ICON_PNG, icon_dir / f"{APP_NAME.lower()}.png")
-    shutil.copy(icon_dir / f"{APP_NAME.lower()}.png", appdir / f".{APP_NAME.lower()}.png") # For top-level icon
-
-    # Create AppRun
+    # 1. Create AppRun script
     apprun_content = f"""#!/bin/sh
 HERE=$(dirname $(readlink -f "$0"))
 $HERE/usr/bin/{APP_NAME} "$@"
@@ -156,23 +149,49 @@ $HERE/usr/bin/{APP_NAME} "$@"
     (appdir / "AppRun").write_text(apprun_content)
     (appdir / "AppRun").chmod(0o755)
 
-    # Create .desktop file
+    # 2. Create .desktop file
     desktop_content = f"""[Desktop Entry]
 Name={APP_NAME}
 Exec={APP_NAME}
-Icon={APP_NAME.lower()}
+Icon={icon_name}
 Type=Application
 Categories=Utility;
 """
-    (appdir / f"{APP_NAME.lower()}.desktop").write_text(desktop_content)
+    (appdir / desktop_filename).write_text(desktop_content)
 
-    # Download AppImageTool and build
+    # 3. Copy the main executable
+    bin_dir = appdir / "usr" / "bin"
+    bin_dir.mkdir(parents=True)
+    shutil.copy(RELEASE_DIR / APP_NAME, bin_dir / APP_NAME)
+
+    # 4. Copy the icon to the standard path AND the root path
+    # The .desktop file's 'Icon' entry will use this one
+    icon_dir_standard = appdir / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+    icon_dir_standard.mkdir(parents=True)
+    shutil.copy(ICON_PNG, icon_dir_standard / f"{icon_name}.png")
+
+    # This is a best-practice fallback for appimagetool and desktop environments
+    shutil.copy(ICON_PNG, appdir / f"{icon_name}.png")
+
+    # 5. Download AppImageTool and build the AppImage
     appimagetool = download_appimagetool()
     final_appimage_name = f"{APP_NAME}-x86_64.AppImage"
-    run_command(
-        [str(appimagetool), str(appdir), str(RELEASE_DIR / final_appimage_name)],
-        "AppImage creation failed."
-    )
+    
+    # Set ARCH and run the tool
+    env = os.environ.copy()
+    env["ARCH"] = "x86_64"
+    command = [str(appimagetool), str(appdir), str(RELEASE_DIR / final_appimage_name)]
+    
+    print("   Running appimagetool...")
+    try:
+        # We run this command directly instead of using the helper to pass the 'env'
+        subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ ERROR: AppImage creation failed.")
+        print(f"   COMMAND: {' '.join(command)}")
+        print(f"   STDERR: {e.stderr}")
+        sys.exit(1)
+
     print(f"✅ AppImage created successfully at '{RELEASE_DIR / final_appimage_name}'")
 
 
@@ -180,7 +199,6 @@ def main():
     """Main build process."""
     print_header("Canis.lab Installer Builder")
 
-    # Create the new, improved installer script for the build
     if not Path(INSTALLER_SCRIPT).exists():
         sys.exit(f"❌ ERROR: The source for the new installer '{INSTALLER_SCRIPT}' was not found.")
     
