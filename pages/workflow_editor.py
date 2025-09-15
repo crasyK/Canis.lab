@@ -9,7 +9,7 @@ from streamlit_flow.state import StreamlitFlowState
 from streamlit_flow.layouts import LayeredLayout
 from lib.app_objects import step as StepClass, create_complete_flow_from_state
 from lib.state_managment import (
-    create_state, start_seed_step, complete_running_step, get_uploaded_steps,
+    create_state, start_seed_step_streamlit, complete_running_step, get_uploaded_steps,
     use_llm_tool, use_code_tool, get_markers, get_uploaded_markers,
     use_chip, get_deletable_steps, delete_step, cancel_step_batch
 
@@ -365,7 +365,6 @@ class ProgressTrackerUI:
     def _quick_check_step(self, step):
         """Quick check for a running step"""
         try:
-            from lib.state_managment import complete_running_step
             state_file_path = dir_manager.get_state_file_path(self.workflow_name)
             result = complete_running_step(str(state_file_path))
             st.toast(f"Status: {result[0]}")
@@ -525,51 +524,6 @@ def render_workflow_loader_dialog():
         with col2:
             if st.button("Cancel", use_container_width=True):
                 st.session_state.show_workflow_loader = False
-                st.rerun()
-
-def render_seed_selector_dialog():
-    """Simplified seed selector"""
-    with st.container():
-        st.subheader("🌱 Add Seed Step")
-        
-        available_seeds = get_available_seed_files()
-        if not available_seeds:
-            st.info("No seed files found. Use Seed Architect to create them.")
-            if st.button("🏗️ Go to Seed Architect"):
-                st.switch_page("pages/seed_architect.py")
-            return
-        
-        selected_seed = st.selectbox(
-            "Select Seed File:",
-            options=available_seeds,
-            format_func=lambda x: x['display_name'],
-            key="seed_file_select"
-        )
-        
-        if selected_seed:
-            # Show preview
-            with st.expander("Preview", expanded=False):
-                seed_content, metadata = preview_seed_file(selected_seed['path'])
-                if seed_content:
-                    total_entries, _ = calculate_seed_combinations_with_breakdown(seed_content)
-                    st.metric("Total Entries", f"{total_entries:,}")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("Add Seed Step", use_container_width=True):
-                try:
-                    state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
-                    start_seed_step(str(state_file_path), selected_seed['path'])
-                    load_workflow_state(st.session_state.current_workflow)
-                    st.session_state.show_seed_selector = False
-                    set_message('success', "🌱 Seed step added!")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error: {e}")
-        
-        with col2:
-            if st.button("Cancel", use_container_width=True):
-                st.session_state.show_seed_selector = False
                 st.rerun()
 
 def render_single_data_creator():
@@ -2425,7 +2379,7 @@ def create_single_data_nodes_from_state(state_data):
         single_data_nodes.append(single_node)
     
     return single_data_nodes
-
+print(" A RERUN OCCURRED ")
 # SIDEBAR - WORKFLOW ACTIONS AND MANAGEMENT
 with st.sidebar:
     st.header("🛠️ Workflow Manager")
@@ -2635,7 +2589,7 @@ with st.sidebar:
 col1, col2, col3 = st.columns([3, 1, 1])
 with col1:
     st.title("🔄 Workflow Editor")
-    print(" A RERUN OCCURRED ")
+
     if 'message' in st.session_state and st.session_state.message:
         msg_type = st.session_state.message.get('type', 'info')
         msg_text = st.session_state.message.get('text', '')
@@ -2829,15 +2783,26 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                             st.markdown(f"⚫ **{batch_step['status'].title()}**")
 
                     with col3:
-                        if st.button("🔄 Check", key=f"check_{batch_step['name']}"):
-                            try:
-                                result = complete_running_step(state_file_path)
-                                st.toast(f"Batch result: {result}")
-                                # Manual refresh of visual state only
-                                load_workflow_state(st.session_state.current_workflow)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error: {e}")
+                        if batch_step['batch'].get('upload_id') == "TBD":
+                            if st.button(" Start ", key=f"start_{batch_step['name']}"):
+                                try:
+                                    result = complete_running_step(state_file_path)
+                                    set_message('success',f"Batch started: {result}")
+                                    # Manual refresh of visual state only
+                                    load_workflow_state(st.session_state.current_workflow)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                        else:
+                            if st.button("🔄 Check", key=f"check_{batch_step['name']}"):
+                                try:
+                                    result = complete_running_step(state_file_path)
+                                    set_message('info',f"Batch result: {result}")
+                                    # Manual refresh of visual state only
+                                    load_workflow_state(st.session_state.current_workflow)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
                     st.divider()
 
 
@@ -2925,36 +2890,29 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             with col1:
                 if st.button("🌱 Start Seed Step", key="seed_start_btn"):
                     if seed_file_path:
-                        try:
-                            # Ensure workflow directory exists
-                            current_workflow = st.session_state.current_workflow
-                            print(dict(st.session_state).keys())
-                            
-                            dir_manager.ensure_workflow_directory(st.session_state.current_workflow)
-                            print("A")
-                            from lib.tools.batch import upload_batch
-                            upload_batch("C:\\Users\\NediM\\Desktop\\canis.lab\\runs\\AAA\\batch\\seed_batch.jsonl")  # Ensure batch tool is available
-                            # Get state file path
-                            state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
-                            print("B")
-                            # Start the seed step (writes to state file on disk)
-                            start_seed_step(state_file_path, seed_file_path)
-                            print("C")
-                            print("Im gonna print this: "+ current_workflow)
-                            for key in st.session_state.keys():
-                                print(f"Key: {key}, Value: {st.session_state[key]}")
-                            print("gonna load da shit")
-                            # Rebuild the in-memory graph from the updated state file
-                            load_workflow_state(current_workflow)
-                            print("D")
+                            try:
+                                # Ensure workflow directory exists
+                                current_workflow = st.session_state.current_workflow
+                                print(dict(st.session_state).keys())
+                                
+                                dir_manager.ensure_workflow_directory(st.session_state.current_workflow)
 
-                            # Force rerender with the new flow_state
-                            set_message('success', "🚀 Seed step started!")
-                            st.session_state.show_seed_dialog = False
-                            st.rerun()
+                                state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
+                                # Start the seed step (writes to state file on disk)
+                               
+                                start_seed_step_streamlit(state_file_path, seed_file_path)
 
-                        except Exception as e:
-                            set_message('error', f"❌ Error starting seed: {e}")
+                                # Rebuild the in-memory graph from the updated state file
+                                load_workflow_state(current_workflow)
+
+                                # Force rerender with the new flow_state
+                                st.session_state.show_seed_dialog = False
+                                st.session_state.double_check_seed_start = False
+                                set_message('success', "🚀 Seed step started!")
+                                st.rerun()
+                            except Exception as e:
+                                st.session_state.double_rerun_seed = False
+                                set_message('error', f"❌ Error starting seed: {e}")
                     else:
                         set_message('warning', "⚠️ Please select or enter a seed file path.")
 
