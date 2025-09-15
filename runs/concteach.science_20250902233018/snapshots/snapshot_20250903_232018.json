@@ -1,0 +1,51 @@
+{
+  "name": "concteach.science_20250902233018",
+  "status": "completed",
+  "nodes": [
+    {
+      "name": "system_prompt",
+      "file_name": "runs/concteach.science_20250902233018/data/system_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "user_prompt",
+      "file_name": "runs/concteach.science_20250902233018/data/user_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "raw_seed_data",
+      "file_name": "runs/concteach.science_20250902233018/data/raw_seed_data.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "completed"
+    }
+  ],
+  "state_steps": [
+    {
+      "name": "seed",
+      "type": "llm",
+      "status": "completed",
+      "tool_name": "",
+      "batch": {
+        "in": "runs/concteach.science_20250902233018/batch/seed_batch.jsonl",
+        "upload_id": "batch_68b762158b4481908a46b42f99b84f6b",
+        "out": "runs/concteach.science_20250902233018/batch/seed_results.jsonl"
+      },
+      "data": {
+        "in": {},
+        "out": {
+          "user_prompt": "runs/concteach.science_20250902233018/data/user_prompt.json",
+          "system_prompt": "runs/concteach.science_20250902233018/data/system_prompt.json",
+          "raw_seed_data": "runs/concteach.science_20250902233018/data/raw_seed_data.json"
+        }
+      }
+    }
+  ]
+}

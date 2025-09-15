@@ -1,0 +1,279 @@
+{
+  "timestamp": "2025-09-15T12:47:03.348390",
+  "workflow_name": "concteach.science",
+  "positions": {
+    "1-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "seed",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "1-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "user_prompt",
+        "prev_pos": [
+          110,
+          50
+        ]
+      }
+    },
+    "1-out-2": {
+      "position": {
+        "x": 110,
+        "y": 110
+      },
+      "data": {
+        "content": "system_prompt",
+        "prev_pos": [
+          110,
+          110
+        ]
+      }
+    },
+    "1-out-3": {
+      "position": {
+        "x": 110,
+        "y": 170
+      },
+      "data": {
+        "content": "raw_seed_data",
+        "prev_pos": [
+          110,
+          170
+        ]
+      }
+    },
+    "2-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "parsing",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "2-in-1": {
+      "position": {
+        "x": -10,
+        "y": 50
+      },
+      "data": {
+        "content": "raw_seed_data",
+        "prev_pos": [
+          -10,
+          50
+        ]
+      }
+    },
+    "2-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "parsed_data",
+        "prev_pos": [
+          110,
+          50
+        ]
+      }
+    },
+    "3-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "Classify",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "3-in-1": {
+      "position": {
+        "x": -10,
+        "y": 50
+      },
+      "data": {
+        "content": "parsed_data",
+        "prev_pos": [
+          -10,
+          50
+        ]
+      }
+    },
+    "3-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "EXCELLENT",
+        "prev_pos": [
+          110,
+          50
+        ]
+      }
+    },
+    "3-out-2": {
+      "position": {
+        "x": 110,
+        "y": 110
+      },
+      "data": {
+        "content": "GOOD",
+        "prev_pos": [
+          110,
+          110
+        ]
+      }
+    },
+    "3-out-3": {
+      "position": {
+        "x": 110,
+        "y": 170
+      },
+      "data": {
+        "content": "FAIR",
+        "prev_pos": [
+          110,
+          170
+        ]
+      }
+    },
+    "3-out-4": {
+      "position": {
+        "x": 110,
+        "y": 230
+      },
+      "data": {
+        "content": "POOR",
+        "prev_pos": [
+          110,
+          230
+        ]
+      }
+    },
+    "3-out-5": {
+      "position": {
+        "x": 110,
+        "y": 290
+      },
+      "data": {
+        "content": "REJECT",
+        "prev_pos": [
+          110,
+          290
+        ]
+      }
+    },
+    "4-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "Result",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "4-in-1": {
+      "position": {
+        "x": -10,
+        "y": 50
+      },
+      "data": {
+        "content": "EXCELLENT",
+        "prev_pos": [
+          -10,
+          50
+        ]
+      }
+    },
+    "4-in-2": {
+      "position": {
+        "x": -10,
+        "y": 110
+      },
+      "data": {
+        "content": "GOOD",
+        "prev_pos": [
+          -10,
+          110
+        ]
+      }
+    },
+    "4-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "combined_data",
+        "prev_pos": [
+          110,
+          50
+        ]
+      }
+    },
+    "5-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "Final",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "5-in-1": {
+      "position": {
+        "x": -10,
+        "y": 50
+      },
+      "data": {
+        "content": "combined_data",
+        "prev_pos": [
+          -10,
+          50
+        ]
+      }
+    },
+    "5-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "/home/m...",
+        "prev_pos": [
+          110,
+          50
+        ]
+      }
+    }
+  }
+}

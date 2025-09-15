@@ -9,14 +9,14 @@ api_key = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
 def upload_batch(batch_filename):
+  file = open(batch_filename, "rb")
   batch_file = client.files.create(
-      file=open(batch_filename, "rb"),
+      file=file,
       purpose="batch"
   )
-  
   batch_job = client.batches.create(
       input_file_id=batch_file.id,
-      endpoint="/v1/responses",
+      endpoint="/v1/responses", 
       completion_window="24h"
   )
   return batch_job.id
@@ -153,7 +153,8 @@ def convert_batch_out_to_json_data(batch_file, output_file=None):
         
     return output_data, status
 
-
-
 def cancel_batch_job(batch_id):
   client.batches.cancel(batch_id)
+  
+
+

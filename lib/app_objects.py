@@ -2,6 +2,7 @@ from streamlit_flow.elements import StreamlitFlowNode, StreamlitFlowEdge
 import json
 import os
 from typing import Dict, Any
+import streamlit as st
 
 
 class ThemeManager:
@@ -500,24 +501,24 @@ class step(object):
         cls.steps_arr = []
         cls.instances = {}
         cls.edges_arr = []
-        
+
         # Clear step instances from session state
         try:
-            import streamlit as st
             if 'step_instances' in st.session_state:
-                del st.session_state['step_instances']
-            
+                st.session_state['step_instances']  = None
             # Clear flow state related keys
             keys_to_clear = [key for key in st.session_state.keys() if 'flow_state' in key or 'step_' in key]
+            print(keys_to_clear)
             for key in keys_to_clear:
                 del st.session_state[key]
                 print(f"✅ Cleared flow state key: {key}")
                 
-        except ImportError:
+        except Exception as e:
             # Not in Streamlit context, skip cleanup
+            print(e)
             pass
-        
-        print(f"✅ Reset step class state - instances: {len(cls.instances)}, steps: {len(cls.steps_arr)}")
+        finally:
+            print(f"✅ Reset step class state - instances: {len(cls.instances)}, steps: {len(cls.steps_arr)}")
         
     def get_sample_data_for_preview(self, marker_key):
         """Get sample data for marker preview"""

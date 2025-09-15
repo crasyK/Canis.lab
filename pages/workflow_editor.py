@@ -454,14 +454,7 @@ class ProgressAutoRefresh:
     @staticmethod
     def setup_auto_refresh(interval_seconds=30):
         """Setup auto-refresh for progress updates"""
-        # Add auto-refresh script
-        st.markdown(f"""
-        <script>
-        setTimeout(function(){{
-            window.parent.document.dispatchEvent(new KeyboardEvent('keydown', {{key: 'r', ctrlKey: true}}));
-        }}, {interval_seconds * 1000});
-        </script>
-        """, unsafe_allow_html=True)
+        st.rerun()
     
     @staticmethod
     def render_refresh_controls():
@@ -1190,32 +1183,20 @@ class DataPreview:
         except Exception as e:
             return None
 
-def show_persistent_message():
-    """Display persistent messages that survive page reloads"""
-    if 'message' in st.session_state and st.session_state.message:
-        msg_type = st.session_state.message.get('type', 'info')
-        msg_text = st.session_state.message.get('text', '')
-        if msg_type == 'success':
-            st.success(msg_text)
-        elif msg_type == 'error':
-            st.error(msg_text)
-        elif msg_type == 'warning':
-            st.warning(msg_text)
-        elif msg_type == 'info':
-            st.info(msg_text)
-        # Clear message after showing
-        st.session_state.message = None
-
 def set_message(message_type, text):
     """Set a message that persists through reloads"""
     st.session_state.message = {'type': message_type, 'text': text}
-
+    
+    
 if 'current_workflow' not in st.session_state:
     st.session_state.current_workflow = None
 if 'flow_state' not in st.session_state:
     st.session_state.flow_state = None
 if 'pending_steps' not in st.session_state:
     st.session_state.pending_steps = []
+
+if "message" not in st.session_state:
+    st.session_state.message = None
 
 # Initialize preview state
 if 'selected_marker_data' not in st.session_state:
@@ -1745,11 +1726,8 @@ def load_workflow_state(workflow_name):
         if not state_file_path.exists():
             set_message('error', f"❌ Workflow state file not found: {workflow_name}")
             return None
-        
         state_data = dir_manager.load_json(state_file_path)
         
-        # Create step instances and nodes from ALL steps (not just completed ones)
-        from lib.app_objects import step
         StepClass.reset_class_state() # Clear existing instances
         
         nodes = []
@@ -1759,7 +1737,7 @@ def load_workflow_state(workflow_name):
             outputs = step_data.get('data', {}).get('out', {})
             markers_map = {'in': len(inputs), 'out': len(outputs)}
             
-            step_instance = step(
+            step_instance = StepClass(
                 markers_map=markers_map,
                 step_type=step_data.get('type', 'code'),
                 status=step_data.get('status', 'completed'),
@@ -1768,7 +1746,6 @@ def load_workflow_state(workflow_name):
                 nodes_info=state_data.get('nodes', [])
             )
             nodes.extend(step_instance.return_step())
-        
         # Create single data nodes
         single_data_nodes = create_single_data_nodes_from_state(state_data)
         nodes.extend(single_data_nodes)
@@ -1778,16 +1755,16 @@ def load_workflow_state(workflow_name):
         # Create edges between steps
         edges = StepClass.create_edges_between_steps()
         
-        # Create initial flow state
-        from streamlit_flow import StreamlitFlowState
+            # Create initial flow state
         flow_state = StreamlitFlowState(nodes, edges)
         
         # IMPORTANT: Restore single data edges
         restored_edges = create_single_data_edges_from_state(state_data, flow_state)
         flow_state.edges = restored_edges
-        
+
         # Update session state
         st.session_state.flow_state = flow_state
+
         st.session_state.current_workflow = workflow_name
         
         print(f"✅ Loaded workflow: {workflow_name}")
@@ -1796,6 +1773,7 @@ def load_workflow_state(workflow_name):
         return state_data
         
     except Exception as e:
+        print("ERROR"+e)
         set_message('error', f"❌ Error loading workflow: {e}")
         print(f"❌ Error loading workflow {workflow_name}: {e}")
         import traceback
@@ -2657,7 +2635,18 @@ with st.sidebar:
 col1, col2, col3 = st.columns([3, 1, 1])
 with col1:
     st.title("🔄 Workflow Editor")
-    show_persistent_message()
+    print(" A RERUN OCCURRED ")
+    if 'message' in st.session_state and st.session_state.message:
+        msg_type = st.session_state.message.get('type', 'info')
+        msg_text = st.session_state.message.get('text', '')
+        if msg_type == 'success':
+            st.success(msg_text)
+        elif msg_type == 'error':
+            st.error(msg_text)
+        elif msg_type == 'warning':
+            st.warning(msg_text)
+        elif msg_type == 'info':
+            st.info(msg_text)
 
 with col2:
     # Current workflow indicator
@@ -2666,9 +2655,6 @@ with col2:
     else:
         st.info("No workflow loaded")
 
-with col3:
-    # Dark mode is always applied - no toggle needed
-    pass
 
 # CREATE NEW WORKFLOW DIALOG
 if st.session_state.get('show_create_workflow_dialog', False):
@@ -2734,8 +2720,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
         st.metric("Steps", len(current_state_data['state_steps']))
     with col4:
         # Show running batches count
-        running_batches = [s for s in current_state_data['state_steps']
-                          if s.get('status') in ['uploaded', 'in_progress']]
+        running_batches = [s for s in current_state_data['state_steps'] if s.get('status') in ['uploaded', 'in_progress']]
         if running_batches:
             st.metric("🟡 Running", len(running_batches))
         else:
@@ -2938,39 +2923,46 @@ if st.session_state.current_workflow and st.session_state.flow_state:
             # Action buttons
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("🌱 Start Seed Step"):
+                if st.button("🌱 Start Seed Step", key="seed_start_btn"):
                     if seed_file_path:
                         try:
-                            # Ensure workflow directory exists first
+                            # Ensure workflow directory exists
+                            current_workflow = st.session_state.current_workflow
+                            print(dict(st.session_state).keys())
+                            
                             dir_manager.ensure_workflow_directory(st.session_state.current_workflow)
-                            # Get proper state file path
+                            print("A")
+                            from lib.tools.batch import upload_batch
+                            upload_batch("C:\\Users\\NediM\\Desktop\\canis.lab\\runs\\AAA\\batch\\seed_batch.jsonl")  # Ensure batch tool is available
+                            # Get state file path
                             state_file_path = dir_manager.get_state_file_path(st.session_state.current_workflow)
-                            start_seed_step(str(state_file_path), seed_file_path)
+                            print("B")
+                            # Start the seed step (writes to state file on disk)
+                            start_seed_step(state_file_path, seed_file_path)
+                            print("C")
+                            print("Im gonna print this: "+ current_workflow)
+                            for key in st.session_state.keys():
+                                print(f"Key: {key}, Value: {st.session_state[key]}")
+                            print("gonna load da shit")
+                            # Rebuild the in-memory graph from the updated state file
+                            load_workflow_state(current_workflow)
+                            print("D")
+
+                            # Force rerender with the new flow_state
                             set_message('success', "🚀 Seed step started!")
                             st.session_state.show_seed_dialog = False
-                            # Manual refresh of visual state
-                            load_workflow_state(st.session_state.current_workflow)
                             st.rerun()
+
                         except Exception as e:
                             set_message('error', f"❌ Error starting seed: {e}")
                     else:
                         set_message('warning', "⚠️ Please select or enter a seed file path.")
 
+
             with col2:
-                if st.button("Cancel##seed"):
+                if st.button("Cancel seed"):
                     st.session_state.show_seed_dialog = False
                     st.rerun()
-
-    # OLD DIALOGS COMMENTED OUT - REPLACED BY SmartStepBuilder
-    # # LLM tool dialog
-    # if st.session_state.get('show_llm_dialog', False):
-    #     with st.expander("🤖 Add LLM Tool", expanded=True):
-    #         # ... old dialog code ...
-
-    # #CODE TOOL DIALOG
-    # if st.session_state.get('show_code_dialog', False):
-    #     with st.expander("⚙️ Add Code Tool", expanded=True):
-    #         # ... old dialog code ...
 
     # SINGLE DATA DIALOG
     if st.session_state.get('show_single_data_dialog', False):
@@ -3100,13 +3092,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
                         st.rerun()
         
         st.divider()
-
-    # OLD WORKFLOW VISUALIZATION SECTION - REPLACED BY NEW LAYOUT
-    # (This section is now handled in the simplified interface above)
-
-    # OLD NODE SELECTION INFO - REPLACED BY DataPreview
-    # (Node selection info is now handled in the DataPreview panel)
-
+        
 else:
     st.info("👆 Please create a new workflow or load an existing one from the sidebar.")
     # Show example workflows if any exist

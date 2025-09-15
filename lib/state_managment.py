@@ -10,12 +10,14 @@ from .tools.global_func import check_data_type, is_single_data
 from .tools.chip import prepare_chip_use, start_chip_tool, finish_chip_tool, save_chip_results
 from lib.directory_manager import dir_manager
 from pathlib import Path
+import streamlit as st
+ 
 
 # Session State Management Functions
 def cleanup_session_state(workflow_name=None):
     """Clean up session state when switching workflows"""
     try:
-        import streamlit as st
+
         keys_to_clear = ['flow_state', 'pending_steps', 'current_workflow', 'step_instances']
         
         if workflow_name:
@@ -38,7 +40,6 @@ def get_namespaced_key(workflow_name, key):
 def get_session_state_value(workflow_name, key, default=None):
     """Get value from session state with namespacing"""
     try:
-        import streamlit as st
         namespaced_key = get_namespaced_key(workflow_name, key)
         return st.session_state.get(namespaced_key, default)
     except ImportError:
@@ -47,7 +48,6 @@ def get_session_state_value(workflow_name, key, default=None):
 def set_session_state_value(workflow_name, key, value):
     """Set value in session state with namespacing"""
     try:
-        import streamlit as st
         namespaced_key = get_namespaced_key(workflow_name, key)
         st.session_state[namespaced_key] = value
     except ImportError:
@@ -72,7 +72,7 @@ def auto_check_running_batches(state_file):
 def cleanup_large_session_objects():
     """Clean up large objects from session state"""
     try:
-        import streamlit as st
+         
         max_chat_history = 50
         
         # Clean up architect messages
@@ -432,23 +432,28 @@ def find_step_output_marker(state, marker_name):
                     return output_path
     return None
 
-def start_seed_step(state_file, seed_file):
+def start_seed_step(state_file, seed_file, queue=None):
     """Start seed step using DirectoryManager"""
+    print("a")
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    
+    print("b")
+
     state["status"] = "running"
     new_step = empty_step_llm.copy()
     new_step["name"] = "seed"
     new_step["status"] = "created"
     
+    print("c")
+
+    
     # Use DirectoryManager for batch file path
     batch_file_path = dir_manager.get_batch_file_path(workflow_name, new_step["name"])
     new_step["batch"]["in"] = str(batch_file_path)
-    
+    print("d")
     # Generate seed batch file
     generate_seed_batch_file(seed_file, new_step["batch"]["in"])
-    
+    print("e")
     # Use DirectoryManager for data file paths
     data_dir = dir_manager.get_data_dir(workflow_name)
     new_step["data"]["out"] = {
@@ -456,29 +461,33 @@ def start_seed_step(state_file, seed_file):
         "system_prompt": str(data_dir / "system_prompt.json"), 
         "raw_seed_data": str(data_dir / "raw_seed_data.json")
     }
-    
+    print("f")
     # Convert batch data
     convert_batch_in_to_json_data(
         new_step["batch"]["in"], 
         new_step["data"]["out"]["system_prompt"], 
         new_step["data"]["out"]["user_prompt"]
     )
-    
+    print("g")
     # Create markers
     state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], {"str":"data"}))
     state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], {"str":"data"}))
-    
+    print("h")
     # Upload batch
+    
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
-    new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name) / f"{new_step['name']}_results.jsonl")
-    
+    new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name))+ "/"+ f"{new_step['name']}_results.jsonl"
+    print("i")
     state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "uploaded"))
-    
+    print("j")
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
-    
+    print("k")
     # Save state using DirectoryManager
     dir_manager.save_json(state_file, state)
+    print(st.session_state.message)
+    if queue:
+        queue.put(state)
     return state_file
 
 def complete_running_step(state_file):
@@ -606,10 +615,10 @@ def use_llm_tool(state_file, custom_name, tool_name, reference_dict, test_mode=F
     
     # Use DirectoryManager for data output path
     data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{output_markers['name']}", "extracted")
-    new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(data_output_path)}
+    new_step["data"]["out"] = {str(new_step['name'] + "_" + output_markers["name"]): str(data_output_path)}
 
     # Create marker
-    state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"], "uploaded"))
+    state["nodes"].append(create_markers(str(new_step['name'] + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"], "uploaded"))
     
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
@@ -658,14 +667,14 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
         # Save the dataset using DirectoryManager
         if isinstance(dataset_result, Dataset):
             saved_info = dir_manager.save_huggingface_dataset(workflow_name, dataset_result, version_name)
-            new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): saved_info['version_dir']}
+            new_step["data"]["out"] = {str(new_step['name'] + "_" + output_markers["name"]): saved_info['version_dir']}
         else:
             # For non-Dataset results, save to datasets directory
             version_dir = dir_manager.create_dataset_version_dir(workflow_name, version_name)
             save_code_tool_results(tool_name, dataset_result, str(version_dir))
-            new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(version_dir)}
+            new_step["data"]["out"] = {str(new_step['name'] + "_" + output_markers["name"]): str(version_dir)}
         
-        state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
+        state["nodes"].append(create_markers(str(new_step['name'] + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
         new_step["status"] = "completed"
         state["status"] = "finalized"
     else:
@@ -676,8 +685,8 @@ def use_code_tool(state_file, custom_name, tool_name, reference_dict, test_mode=
         result = execute_code_tool(tool_name, data_content)
         save_code_tool_results(tool_name, result, str(data_output_path))
 
-        new_step["data"]["out"] = {str({new_step['name']} + "_" + output_markers["name"]): str(data_output_path)}
-        state["nodes"].append(create_markers(str({new_step['name']} + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
+        new_step["data"]["out"] = {str(new_step['name'] + "_" + output_markers["name"]): str(data_output_path)}
+        state["nodes"].append(create_markers(str(new_step['name'] + "_" + output_markers["name"]), new_step["data"]["out"][output_markers["name"]], output_markers["type"]))
         new_step["status"] = "completed"
         state["status"] = "completed"
     
@@ -724,7 +733,7 @@ def use_chip(state_file, custom_name, chip_name, reference_dict, test_mode=False
         output_paths[key] = str(data_output_path)
         
         # Create each marker
-        state["nodes"].append(create_markers(str({new_step['name']} + "_" + key), output_paths[key], value, "uploaded"))
+        state["nodes"].append(create_markers(str(new_step['name'] + "_" + key), output_paths[key], value, "uploaded"))
 
     new_step["data"]["out"] = output_paths
     new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name) / f"{new_step['name']}_results.jsonl")
