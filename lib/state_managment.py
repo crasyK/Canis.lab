@@ -19,18 +19,35 @@ import streamlit as st
 def cleanup_session_state(workflow_name=None):
     """Clean up session state when switching workflows"""
     try:
-
-        keys_to_clear = ['flow_state', 'pending_steps', 'current_workflow', 'step_instances']
+        # Core workflow keys that must be cleared
+        keys_to_clear = [
+            'flow_state', 'pending_steps', 'step_instances',
+            'show_data_preview', 'selected_node_data',
+            'show_single_data_dialog', 'show_seed_dialog',
+            'cancelling_batch', 'deleting_step', 'selected_marker_name',
+            'test_mode_enabled', 'retry_test'
+        ]
         
         if workflow_name:
-            # Clean workflow-specific keys
+            # Add workflow-specific namespaced keys
             workflow_keys = [f"{workflow_name}_{key}" for key in keys_to_clear]
             keys_to_clear.extend(workflow_keys)
         
+        cleared_count = 0
         for key in keys_to_clear:
             if key in st.session_state:
                 del st.session_state[key]
-                print(f"✅ Cleared session state key: {key}")
+                cleared_count += 1
+        
+        print(f"🧹 Cleared {cleared_count} session state keys for workflow switch")
+        
+        # Also reset step class state to avoid stale instances
+        try:
+            from lib.app_objects import step
+            step.reset_class_state()
+        except:
+            pass
+            
     except ImportError:
         # Not in Streamlit context, skip cleanup
         pass
@@ -466,39 +483,88 @@ def start_seed_step_streamlit(state_file, seed_file):
     state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], {"str":"data"}))
     state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], {"str":"data"}))
 
-    # Upload batch
+    # Set TBD state - not actually uploaded yet
     new_step["batch"]["upload_id"] = "TBD"
     new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name))+ "/"+ f"{new_step['name']}_results.jsonl"
-    state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "uploaded"))
+    state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "pending"))
 
-    new_step["status"] = "uploaded"
+    # NEW: Use 'pending' status instead of 'uploaded' for TBD state
+    new_step["status"] = "pending"  # Clear indication this needs execution
     state["state_steps"].append(new_step)
+    
+    # Add to pending steps for execution queue
+    try:
+        if 'pending_steps' not in st.session_state:
+            st.session_state.pending_steps = []
+        
+        st.session_state.pending_steps.append({
+            'step_name': new_step["name"],
+            'step_number': new_step["step_number"], 
+            'type': 'seed',
+            'action': 'upload_batch',
+            'tool': 'seed'
+        })
+    except:
+        # Not in Streamlit context, skip pending steps queue
+        pass
+    
     # Save state using DirectoryManager
     dir_manager.save_json(state_file, state)
     return state_file
 
+def upload_seed_step_batch(state_file, step_name):
+    """Upload a seed step batch from TBD to started state"""
+    try:
+        state = dir_manager.load_json(state_file)
+        
+        # Find the step
+        step = next((s for s in state['state_steps'] if s['name'] == step_name), None)
+        if not step or step.get('status') != 'pending':
+            return False
+        
+        # Upload the batch
+        batch_file = step['batch']['in']  # Use the input batch file
+        upload_result = upload_batch(batch_file)  # This returns batch_id
+        
+        if upload_result and upload_result != "TBD":
+            # Update to uploaded state
+            step['batch']['upload_id'] = upload_result
+            step['status'] = 'uploaded'  # Now truly uploaded
+            
+            # Update node state too
+            for node in state.get('nodes', []):
+                if node.get('name') == 'raw_seed_data':
+                    node['state'] = 'uploaded'
+                    break
+            
+            dir_manager.save_json(state_file, state)
+            print(f"✅ Seed step '{step_name}' batch uploaded with ID: {upload_result}")
+            return True
+        else:
+            print(f"❌ Failed to upload batch for seed step '{step_name}'")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error uploading seed step batch: {e}")
+        return False
+
 def start_seed_step(state_file, seed_file):
     """Start seed step using DirectoryManager"""
-    print("a")
     state = dir_manager.load_json(state_file)
     workflow_name = state["name"]
-    print("b")
 
     state["status"] = "running"
     new_step = empty_step_llm.copy()
     new_step["name"] = "seed"
     new_step["status"] = "created"
     
-    print("c")
-
-    
     # Use DirectoryManager for batch file path
     batch_file_path = dir_manager.get_batch_file_path(workflow_name, new_step["name"])
     new_step["batch"]["in"] = str(batch_file_path)
-    print("d")
+    
     # Generate seed batch file
     generate_seed_batch_file(seed_file, new_step["batch"]["in"])
-    print("e")
+    
     # Use DirectoryManager for data file paths
     data_dir = dir_manager.get_data_dir(workflow_name)
     new_step["data"]["out"] = {
@@ -506,27 +572,26 @@ def start_seed_step(state_file, seed_file):
         "system_prompt": str(data_dir / "system_prompt.json"), 
         "raw_seed_data": str(data_dir / "raw_seed_data.json")
     }
-    print("f")
+    
     # Convert batch data
     convert_batch_in_to_json_data(
         new_step["batch"]["in"], 
         new_step["data"]["out"]["system_prompt"], 
         new_step["data"]["out"]["user_prompt"]
     )
-    print("g")
+    
     # Create markers
     state["nodes"].append(create_markers("system_prompt", new_step["data"]["out"]["system_prompt"], {"str":"data"}))
     state["nodes"].append(create_markers("user_prompt", new_step["data"]["out"]["user_prompt"], {"str":"data"}))
-    print("h")
+    
     # Upload batch
     new_step["batch"]["upload_id"] = upload_batch(new_step["batch"]["in"])
     new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name))+ "/"+ f"{new_step['name']}_results.jsonl"
-    print("i")
+    
     state["nodes"].append(create_markers("raw_seed_data", new_step["data"]["out"]["raw_seed_data"], {"str":"data"}, "uploaded"))
-    print("j")
+    
     new_step["status"] = "uploaded"
     state["state_steps"].append(new_step)
-    print("k")
     # Save state using DirectoryManager
     dir_manager.save_json(state_file, state)
     return state_file

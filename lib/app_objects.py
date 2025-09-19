@@ -147,6 +147,12 @@ class step(object):
             backgroundColor = colors['corrupted_bg']
             border_style = 'dotted'
             border_width = '4px'
+        elif self.status == 'pending':
+            # Special style for pending steps (like seed TBD state)
+            border_color = colors['warning']
+            backgroundColor = colors['secondary_background']
+            border_style = 'dashed'
+            border_width = '2px'
         else:
             # Check if this is a test step or chip step
 
@@ -248,7 +254,7 @@ class step(object):
                 file_path_lower = file_path.lower()
                 if any(json_indicator in file_path_lower for json_indicator in ['{', '}', '"role"', '"content"']):
                     style['backgroundColor'] = colors['json_data']  # JSON-like content
-                elif file_path_lower in ['true', 'false'] or file_path.isdigit():
+                elif file_path_lower in ['true', 'false'] or file_path_lower.isdigit():
                     style['backgroundColor'] = colors['string_data']  # String/boolean/number
                 else:
                     style['backgroundColor'] = colors['string_data']  # Default to string for single data

@@ -87,7 +87,7 @@ class StreamlitSeedFileArchitect:
     "method": "POST",
     "url": "/v1/responses",
     "body": {
-      "model": "ask the user to select one of the following: ["gpt-5":"the smartest but more expensive", "gpt-5-mini":"Good Medium option", "gpt-5-nano":]",
+      "model": "gpt-4o-mini",
       "input": [
         {"role": "system", "content": "Here you suggest a fitting systemprompt"},
         {"role": "user", "content": "__prompt__"}
@@ -284,7 +284,7 @@ Begin every conversation by understanding their specific use case and goals."""
             test_response = st.session_state.architect_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": "Hello"}],
-                max_completion_tokens=10
+                max_tokens=10
             )
             return True
             
@@ -300,7 +300,7 @@ Begin every conversation by understanding their specific use case and goals."""
     def extract_json_from_response(self, response: str) -> Optional[Dict[Any, Any]]:
         """Extract JSON from AI response."""
         # Look for JSON code blocks
-        json_pattern = r'```json\\s*(\\{.*?\\})\\s*```'
+        json_pattern = r'```json\s*(\{.*?\})\s*```'
         matches = re.findall(json_pattern, response, re.DOTALL)
         
         for match in matches:
@@ -328,26 +328,12 @@ Begin every conversation by understanding their specific use case and goals."""
         return None
 
     def get_ai_response(self, user_input: str) -> str:
-        """Get response from AI with improved error handling and shorter timeout."""
-        st.session_state.last_user_input = user_input
-        
-        # Check if already processing
-        if st.session_state.get('processing_input', False):
-            return "⏳ Already processing your request..."
-        
-        # Set processing flag with automatic cleanup
-        st.session_state.processing_input = True
-        
+        """Get response from AI with improved error handling."""
         try:
-            # Add user message to conversation
-            st.session_state.architect_messages.append({"role": "user", "content": user_input})
-            
-            # Shorter timeout for better UX
             response = st.session_state.architect_client.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=st.session_state.architect_messages,
-                max_completion_tokens=4096,
-                timeout=30  # Reduced from 60 to 20 seconds
+                max_tokens=1024
             )
             
             ai_response = response.choices[0].message.content
@@ -366,14 +352,11 @@ Begin every conversation by understanding their specific use case and goals."""
             return ai_response
             
         except openai.APITimeoutError:
-            return f"❌ Request timed out after 20 seconds. Message: '{user_input[:50]}...'"
+            return f"❌ Request timed out. Message: '{user_input[:50]}...'"
         except openai.APIError as e:
             return f"❌ API Error: {str(e)[:100]}..."
         except Exception as e:
             return f"❌ Unexpected error: {str(e)[:100]}..."
-        finally:
-            # ALWAYS clear processing flag
-            st.session_state.processing_input = False
 
     def validate_current_structure(self) -> List[str]:
         """Validate the current seed file structure and return issues."""
@@ -656,11 +639,7 @@ Begin every conversation by understanding their specific use case and goals."""
             st.error(f"❌ Export error: {e}")
 
     def handle_chat_input_safely(self):
-        """Safely handle chat input with backup and recovery"""
-        
-        # Pre-store the input before processing
-        if 'temp_user_input' not in st.session_state:
-            st.session_state.temp_user_input = ""
+        """Safely handle chat input following Streamlit best practices"""
         
         # Dynamic placeholder based on conversation state
         if len(st.session_state.architect_messages) == 1:
@@ -668,12 +647,7 @@ Begin every conversation by understanding their specific use case and goals."""
         else:
             placeholder = "Continue the conversation..."
         
-        # Show processing status
-        if st.session_state.get('processing_input', False):
-            st.info("⏳ Processing your request... Please wait.")
-            return
-        
-        # Chat input with enhanced error handling
+        # Chat input with processing state handling
         user_input = st.chat_input(
             placeholder, 
             disabled=st.session_state.get('processing_input', False),
@@ -681,32 +655,31 @@ Begin every conversation by understanding their specific use case and goals."""
         )
         
         if user_input and user_input.strip():
-            # Immediately store input for recovery
-            st.session_state.temp_user_input = user_input
-            st.session_state.last_user_input = user_input
+            # Immediately append user message and set processing flag
+            st.session_state.architect_messages.append({"role": "user", "content": user_input})
+            st.session_state.processing_input = True
             
-            # Display user message immediately
+            # Display user message now
             st.chat_message("user").write(user_input)
             
             # Check for finalize command first
             if self.handle_finalize_command(user_input):
-                st.session_state.temp_user_input = ""
+                st.session_state.processing_input = False
+                st.rerun()
                 return
             
-            # Process AI response with proper error handling
+            # Generate and display assistant response
             with st.chat_message("assistant"):
                 with st.spinner("🤖 Thinking..."):
                     try:
                         ai_response = self.get_ai_response(user_input)
                         st.write(ai_response)
-                        
-                        # Clear temp input on success
-                        st.session_state.temp_user_input = ""
-                        
                     except Exception as e:
                         st.error(f"❌ Error processing input: {str(e)[:100]}...")
-                        # Keep input for retry but ensure processing flag is cleared
-                        st.session_state.processing_input = False
+            
+            # Done processing
+            st.session_state.processing_input = False
+            st.rerun()
 
     def _retry_input(self, input_text: str):
         """Retry processing an input"""

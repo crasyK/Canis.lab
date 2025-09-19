@@ -231,7 +231,8 @@ class BatchProgressTracker:
             'batch_id': batch_id,
             'step_name': batch_data.get('step_name'),
             'status': status,
-            'progress_percentage': progress_pct,
+            'progress_pct': progress_pct,  # Add alias for UI compatibility
+            'progress_percentage': progress_pct,  # Keep original for backward compatibility
             'counts': counts,
             'elapsed_time': time.time() - batch_data.get('created_time', time.time()),
             'estimated_remaining': max(0, batch_data.get('estimated_duration', 3600) - (time.time() - batch_data.get('created_time', time.time()))),

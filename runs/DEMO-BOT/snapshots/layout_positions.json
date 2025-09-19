@@ -1,0 +1,46 @@
+{
+  "timestamp": "2025-09-19T18:50:02.723348",
+  "workflow_name": "DEMO-BOT",
+  "positions": {
+    "1-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "seed",
+        "prev_pos": [
+          0,
+          0
+        ]
+      }
+    },
+    "1-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "user_prompt"
+      }
+    },
+    "1-out-2": {
+      "position": {
+        "x": 110,
+        "y": 110
+      },
+      "data": {
+        "content": "system_prompt"
+      }
+    },
+    "1-out-3": {
+      "position": {
+        "x": 110,
+        "y": 170
+      },
+      "data": {
+        "content": "raw_seed_data"
+      }
+    }
+  }
+}

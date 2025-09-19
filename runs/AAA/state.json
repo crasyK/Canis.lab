@@ -1,0 +1,51 @@
+{
+  "name": "AAA",
+  "status": "completed",
+  "nodes": [
+    {
+      "name": "system_prompt",
+      "file_name": "runs\\AAA\\data\\system_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "user_prompt",
+      "file_name": "runs\\AAA\\data\\user_prompt.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "created"
+    },
+    {
+      "name": "raw_seed_data",
+      "file_name": "runs\\AAA\\data\\raw_seed_data.json",
+      "type": {
+        "str": "data"
+      },
+      "state": "completed"
+    }
+  ],
+  "state_steps": [
+    {
+      "name": "seed",
+      "type": "llm",
+      "status": "completed",
+      "tool_name": "",
+      "batch": {
+        "in": "runs\\AAA\\batch\\seed_batch.jsonl",
+        "upload_id": "batch_68cd9dcde79881909d57adcf2ed91e51",
+        "out": "runs\\AAA\\batch\\seed_results.jsonl"
+      },
+      "data": {
+        "in": {},
+        "out": {
+          "user_prompt": "runs\\AAA\\data\\user_prompt.json",
+          "system_prompt": "runs\\AAA\\data\\system_prompt.json",
+          "raw_seed_data": "runs\\AAA\\data\\raw_seed_data.json"
+        }
+      }
+    }
+  ]
+}

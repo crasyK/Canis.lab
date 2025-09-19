@@ -19,7 +19,8 @@ def validate_path_security(path_input):
         Path.cwd() / 'runs', 
         Path.cwd() / 'seed_files',
         Path.cwd() / 'lib',
-        Path.cwd() / 'templates'
+        Path.cwd() / 'templates',
+        Path.cwd() / 'chats'
     ]
     
     # Check if path is within any allowed directory
@@ -311,15 +312,7 @@ class DirectoryManager:
             relative_path = path.relative_to(self.base_dir)
             return str(relative_path)
         except ValueError:
-            # Path is outside base directory, extract meaningful part
-            path_str = str(path)
-            
-            # Look for 'runs/' in the path and extract from there
-            if '/runs/' in path_str:
-                runs_index = path_str.find('/runs/')
-                return path_str[runs_index + 1:]  # Remove leading slash
-            
-            # Fallback: return filename only
+            # Path is outside base directory, just return filename
             return path.name
 
     def _normalize_paths_in_data(self, data):
@@ -499,16 +492,15 @@ class DirectoryManager:
             if resolved.exists():
                 return resolved
         
-        # Strategy 3: If absolute path doesn't exist, try making it relative
+        # Strategy 3: Try to make absolute path relative to base_dir
         if path.is_absolute():
-            path_str = str(path)
-            # Look for 'runs/' in the path and extract from there
-            if '/runs/' in path_str:
-                runs_index = path_str.find('/runs/')
-                relative_part = path_str[runs_index + 1:]  # Remove leading slash
+            try:
+                relative_part = path.relative_to(path.anchor)  
                 resolved = self.base_dir / relative_part
                 if resolved.exists():
                     return resolved
+            except ValueError:
+                pass
         
         # Strategy 4: Search for the filename in common locations
         filename = path.name

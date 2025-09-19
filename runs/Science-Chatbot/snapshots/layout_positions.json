@@ -1,6 +1,6 @@
 {
-  "timestamp": "2025-09-15T12:47:03.348390",
-  "workflow_name": "concteach.science",
+  "timestamp": "2025-09-19T18:50:08.123364",
+  "workflow_name": "Science-Chatbot",
   "positions": {
     "1-parent-0": {
       "position": {
@@ -21,11 +21,7 @@
         "y": 50
       },
       "data": {
-        "content": "user_prompt",
-        "prev_pos": [
-          110,
-          50
-        ]
+        "content": "user_prompt"
       }
     },
     "1-out-2": {
@@ -34,11 +30,7 @@
         "y": 110
       },
       "data": {
-        "content": "system_prompt",
-        "prev_pos": [
-          110,
-          110
-        ]
+        "content": "system_prompt"
       }
     },
     "1-out-3": {
@@ -47,11 +39,7 @@
         "y": 170
       },
       "data": {
-        "content": "raw_seed_data",
-        "prev_pos": [
-          110,
-          170
-        ]
+        "content": "raw_seed_data"
       }
     },
     "2-parent-0": {
@@ -73,11 +61,7 @@
         "y": 50
       },
       "data": {
-        "content": "raw_seed_data",
-        "prev_pos": [
-          -10,
-          50
-        ]
+        "content": "raw_seed_data"
       }
     },
     "2-out-1": {
@@ -86,11 +70,7 @@
         "y": 50
       },
       "data": {
-        "content": "parsed_data",
-        "prev_pos": [
-          110,
-          50
-        ]
+        "content": "parsed_data"
       }
     },
     "3-parent-0": {
@@ -112,11 +92,7 @@
         "y": 50
       },
       "data": {
-        "content": "parsed_data",
-        "prev_pos": [
-          -10,
-          50
-        ]
+        "content": "parsed_data"
       }
     },
     "3-out-1": {
@@ -125,11 +101,7 @@
         "y": 50
       },
       "data": {
-        "content": "EXCELLENT",
-        "prev_pos": [
-          110,
-          50
-        ]
+        "content": "EXCELLENT"
       }
     },
     "3-out-2": {
@@ -138,11 +110,7 @@
         "y": 110
       },
       "data": {
-        "content": "GOOD",
-        "prev_pos": [
-          110,
-          110
-        ]
+        "content": "GOOD"
       }
     },
     "3-out-3": {
@@ -151,11 +119,7 @@
         "y": 170
       },
       "data": {
-        "content": "FAIR",
-        "prev_pos": [
-          110,
-          170
-        ]
+        "content": "FAIR"
       }
     },
     "3-out-4": {
@@ -164,11 +128,7 @@
         "y": 230
       },
       "data": {
-        "content": "POOR",
-        "prev_pos": [
-          110,
-          230
-        ]
+        "content": "POOR"
       }
     },
     "3-out-5": {
@@ -177,11 +137,7 @@
         "y": 290
       },
       "data": {
-        "content": "REJECT",
-        "prev_pos": [
-          110,
-          290
-        ]
+        "content": "REJECT"
       }
     },
     "4-parent-0": {
@@ -203,11 +159,7 @@
         "y": 50
       },
       "data": {
-        "content": "EXCELLENT",
-        "prev_pos": [
-          -10,
-          50
-        ]
+        "content": "EXCELLENT"
       }
     },
     "4-in-2": {
@@ -216,11 +168,7 @@
         "y": 110
       },
       "data": {
-        "content": "GOOD",
-        "prev_pos": [
-          -10,
-          110
-        ]
+        "content": "GOOD"
       }
     },
     "4-out-1": {
@@ -229,11 +177,7 @@
         "y": 50
       },
       "data": {
-        "content": "combined_data",
-        "prev_pos": [
-          110,
-          50
-        ]
+        "content": "combined_data"
       }
     },
     "5-parent-0": {
@@ -255,11 +199,7 @@
         "y": 50
       },
       "data": {
-        "content": "combined_data",
-        "prev_pos": [
-          -10,
-          50
-        ]
+        "content": "combined_data"
       }
     },
     "5-out-1": {
@@ -268,11 +208,47 @@
         "y": 50
       },
       "data": {
-        "content": "/home/m...",
+        "content": "/home/m..."
+      }
+    },
+    "6-parent-0": {
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "data": {
+        "content": "seed",
         "prev_pos": [
-          110,
-          50
+          0,
+          0
         ]
+      }
+    },
+    "6-out-1": {
+      "position": {
+        "x": 110,
+        "y": 50
+      },
+      "data": {
+        "content": "user_prompt"
+      }
+    },
+    "6-out-2": {
+      "position": {
+        "x": 110,
+        "y": 110
+      },
+      "data": {
+        "content": "system_prompt"
+      }
+    },
+    "6-out-3": {
+      "position": {
+        "x": 110,
+        "y": 170
+      },
+      "data": {
+        "content": "raw_seed_data"
       }
     }
   }

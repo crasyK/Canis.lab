@@ -21,8 +21,62 @@ from lib.tools.global_func import get_type, check_data_type, has_connection
 from lib.progress_tracker import ProgressTracker, BatchProgressTracker
 from lib.directory_manager import dir_manager
 
+# Import shared functions
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
+from app import set_message
+
 # Page config
 st.set_page_config(page_title="Workflow Editor", layout="wide")
+
+def switch_workflow_with_cleanup(new_workflow_name):
+    """Switch to a new workflow with proper cleanup of previous state"""
+    try:
+        print(f"🔄 Starting workflow switch to: {new_workflow_name}")
+        
+        # Get current workflow for cleanup
+        current_workflow = st.session_state.get('current_workflow')
+        print(f"📍 Current workflow: {current_workflow}")
+        
+        if current_workflow and current_workflow != new_workflow_name:
+            # Clean up previous workflow state
+            from lib.state_managment import cleanup_session_state
+            cleanup_session_state(current_workflow)
+            print(f"🧹 Cleaned up state for: {current_workflow}")
+        
+        # Clear flow-related session state completely
+        keys_to_clear = [
+            'flow_state', 'step_instances', 'pending_steps', 'show_data_preview',
+            'selected_node_data', 'show_single_data_dialog', 'show_seed_dialog'
+        ]
+        cleared_keys = []
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+                cleared_keys.append(key)
+        print(f"🗑️ Cleared session keys: {cleared_keys}")
+        
+        # Load new workflow
+        print(f"📂 Loading workflow state for: {new_workflow_name}")
+        state_data = load_workflow_state(new_workflow_name)
+        if state_data:
+            # Set current workflow AFTER successful load
+            st.session_state.current_workflow = new_workflow_name
+            print(f"✅ Successfully switched to: {new_workflow_name}")
+            set_message('success', f"✅ Switched to workflow: {new_workflow_name}")
+            return True
+        else:
+            print(f"❌ Failed to load state data for: {new_workflow_name}")
+            set_message('error', f"❌ Failed to load workflow: {new_workflow_name}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Exception in switch_workflow_with_cleanup: {e}")
+        import traceback
+        traceback.print_exc()
+        set_message('error', f"❌ Error switching workflow: {e}")
+        return False
 
 def get_layout_snapshot_path(workflow_name):
     """Get path for layout snapshot file"""
@@ -143,20 +197,28 @@ class ProgressTrackerUI:
         total_steps = len(state_data.get('state_steps', []))
         completed_steps = len([s for s in state_data.get('state_steps', []) 
                               if s.get('status') == 'completed'])
+        pending_steps = len([s for s in state_data.get('state_steps', []) 
+                            if s.get('status') == 'pending'])
         running_steps = len([s for s in state_data.get('state_steps', []) 
                             if s.get('status') in ['uploaded', 'in_progress']])
         failed_steps = len([s for s in state_data.get('state_steps', []) 
                            if s.get('status') == 'failed'])
         
-        # Progress metrics
-        col1, col2, col3, col4 = st.columns(4)
+        # Progress metrics (now with 5 columns for pending steps)
+        col1, col2, col3, col4, col5 = st.columns(5)
         with col1:
             st.metric("🎯 Total Steps", total_steps)
         with col2:
             st.metric("✅ Completed", completed_steps)
         with col3:
-            st.metric("🔄 Running", running_steps)
+            # Show pending steps count
+            if pending_steps > 0:
+                st.metric("⏳ Pending", pending_steps)
+            else:
+                st.metric("⏳ Pending", 0)
         with col4:
+            st.metric("🔄 Running", running_steps)
+        with col5:
             st.metric("❌ Failed", failed_steps)
         
         # Overall progress bar
@@ -400,35 +462,6 @@ class ProgressTrackerUI:
             return self._format_duration(timedelta(seconds=remaining))
         return None
     
-    def _check_batch_status(self, batch_id):
-        """Check and update batch status"""
-        if self.batch_tracker:
-            self.batch_tracker.update_batch_status(batch_id, force_check=True)
-            st.success(f"✅ Updated status for batch {batch_id[:8]}...")
-
-    def _cancel_batch(self, batch_step):
-        """Cancel a batch job"""
-        try:
-            from lib.state_managment import cancel_step_batch
-            state_file_path = dir_manager.get_state_file_path(self.workflow_name)
-            result = cancel_step_batch(str(state_file_path), batch_step['name'])
-            st.success(f"✅ {result}")
-        except Exception as e:
-            st.error(f"❌ Failed to cancel batch: {e}")
-
-    def _format_duration(self, duration):
-        """Format duration in a human-readable way"""
-        total_seconds = int(duration.total_seconds())
-        hours, remainder = divmod(total_seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        
-        if hours > 0:
-            return f"{hours}h {minutes}m"
-        elif minutes > 0:
-            return f"{minutes}m {seconds}s"
-        else:
-            return f"{seconds}s"
-
     def _estimate_remaining_time(self, batch_data):
         """Estimate remaining time for batch completion"""
         progress_pct = batch_data.get('progress_pct', 0)
@@ -508,16 +541,28 @@ def render_workflow_loader_dialog():
             st.info("No workflows found")
             return
         
+        # Maintain selectbox index properly
+        current_workflow = st.session_state.get('current_workflow')
+        if current_workflow and current_workflow in available_workflows:
+            default_index = available_workflows.index(current_workflow)
+        else:
+            default_index = 0
+        
         selected = st.selectbox(
             "Select Workflow:",
             options=available_workflows,
+            index=default_index,
             key="workflow_to_load"
         )
+        
+        # Enhanced workflow switching logic
+        if selected and selected != st.session_state.get('current_workflow'):
+            st.info(f"🔄 Ready to switch to: **{selected}**")
         
         col1, col2 = st.columns(2)
         with col1:
             if st.button("Load", use_container_width=True):
-                if load_workflow_state(selected):
+                if switch_workflow_with_cleanup(selected):
                     st.session_state.show_workflow_loader = False
                     st.rerun()
         
@@ -1045,17 +1090,27 @@ class SmartStepBuilder:
             # Create target ID
             target_id = f"{step_number}-in-{param_index}"
             
-            # FIX: Clean up source_value - remove "Single Data." prefix
+            # Create proper source ID based on connection type
             if source_value.startswith("Single Data."):
                 clean_source_value = source_value.replace("Single Data.", "")
+                source_id = f"single-{clean_source_value}"
             else:
-                clean_source_value = source_value
-            
-            # Create proper source ID
-            source_id = f"single-{clean_source_value}"
+                # Parse "StepName.OutputName" format
+                try:
+                    step_name, out_key = source_value.split(".", 1)
+                    # Find step index
+                    steps = current_state_data.get('state_steps', [])
+                    step_idx = next(i for i, s in enumerate(steps, 1) if s.get('name') == step_name)
+                    # Find output index
+                    out_keys = list(steps[step_idx-1].get('data', {}).get('out', {}).keys())
+                    out_index = out_keys.index(out_key) + 1
+                    source_id = f"{step_idx}-out-{out_index}"
+                except (ValueError, IndexError, StopIteration):
+                    # Fallback to single data format
+                    source_id = f"single-{source_value}"
             
             # Create edge
-            edge_id = f"builder-edge-{clean_source_value}-to-{target_id}"
+            edge_id = f"builder-edge-{source_id}-to-{target_id}"
             edge = StreamlitFlowEdge(
                 edge_id,
                 source_id,
@@ -1125,7 +1180,7 @@ class DataPreview:
             
             # Use existing preview logic
             if is_completed_output_marker(node_id, current_state_data):
-                data = load_marker_preview_data(node_id, current_state_data)
+                data = load_marker_preview_data_by_node_id(node_id, current_state_data)
                 if 'error' not in data:
                     return {
                         'type': 'json',
@@ -1137,11 +1192,7 @@ class DataPreview:
         except Exception as e:
             return None
 
-def set_message(message_type, text):
-    """Set a message that persists through reloads"""
-    st.session_state.message = {'type': message_type, 'text': text}
-    
-    
+
 if 'current_workflow' not in st.session_state:
     st.session_state.current_workflow = None
 if 'flow_state' not in st.session_state:
@@ -1180,10 +1231,6 @@ if 'test_mode_enabled' not in st.session_state:
 if 'retry_test' not in st.session_state:
     st.session_state.retry_test = False
 
-def get_available_seed_files():
-    """Get list of available seed files from seed_files directory"""
-    return dir_manager.list_seed_files()
-
 def preview_seed_file(file_path):
     """Preview seed file content"""
     try:
@@ -1219,7 +1266,7 @@ def is_completed_output_marker(node_id, current_state_data):
     
     return False
 
-def load_marker_preview_data(node_id, current_state_data):
+def load_marker_preview_data_by_node_id(node_id, current_state_data):
     """Load one sample entry from marker data file with path resolution"""
     try:
         # Extract step number and output index
@@ -1671,21 +1718,33 @@ def create_single_data_edges_from_state(state_data, flow_state):
 def load_workflow_state(workflow_name):
     """Load workflow state and recreate visual flow with proper edge restoration"""
     try:
-        # Clear any existing state first
-        if 'pending_steps' in st.session_state:
-            st.session_state.pending_steps = []
+        print(f"🚀 load_workflow_state called for: {workflow_name}")
+        
+        # Force clear any existing flow state completely
+        keys_to_clear = ['pending_steps', 'step_instances', 'show_data_preview', 'selected_node_data']
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # Initialize clean state
+        st.session_state.pending_steps = []
         
         # Load state file
         state_file_path = dir_manager.get_state_file_path(workflow_name)
         if not state_file_path.exists():
             set_message('error', f"❌ Workflow state file not found: {workflow_name}")
             return None
+            
         state_data = dir_manager.load_json(state_file_path)
         
-        StepClass.reset_class_state() # Clear existing instances
+        # Create step instances and nodes from ALL steps (not just completed ones)
+        StepClass.reset_class_state()  # Clear existing instances
         
         nodes = []
         for step_data in state_data.get('state_steps', []):
+            # Remove the status filter - show ALL steps
+            # if step_data.get('status') == 'completed':  # <-- REMOVE THIS LINE
+            
             # Calculate markers_map from step data
             inputs = step_data.get('data', {}).get('in', {})
             outputs = step_data.get('data', {}).get('out', {})
@@ -1694,31 +1753,29 @@ def load_workflow_state(workflow_name):
             step_instance = StepClass(
                 markers_map=markers_map,
                 step_type=step_data.get('type', 'code'),
-                status=step_data.get('status', 'completed'),
+                status=step_data.get('status', 'completed'),  # Pass the actual status
                 step_data=step_data.get('data', {}),
                 step_name=step_data.get('name', f'Step {len(nodes)+1}'),
                 nodes_info=state_data.get('nodes', [])
             )
             nodes.extend(step_instance.return_step())
+        
         # Create single data nodes
         single_data_nodes = create_single_data_nodes_from_state(state_data)
         nodes.extend(single_data_nodes)
-
-        nodes = restore_node_positions_from_snapshot(workflow_name, nodes)
-
+        
         # Create edges between steps
         edges = StepClass.create_edges_between_steps()
         
-            # Create initial flow state
+        # Create initial flow state
         flow_state = StreamlitFlowState(nodes, edges)
         
         # IMPORTANT: Restore single data edges
         restored_edges = create_single_data_edges_from_state(state_data, flow_state)
         flow_state.edges = restored_edges
-
+        
         # Update session state
         st.session_state.flow_state = flow_state
-
         st.session_state.current_workflow = workflow_name
         
         print(f"✅ Loaded workflow: {workflow_name}")
@@ -1727,7 +1784,6 @@ def load_workflow_state(workflow_name):
         return state_data
         
     except Exception as e:
-        print("ERROR"+e)
         set_message('error', f"❌ Error loading workflow: {e}")
         print(f"❌ Error loading workflow {workflow_name}: {e}")
         import traceback
@@ -2045,9 +2101,13 @@ def execute_pending_steps():
         connections = get_edge_connections(st.session_state.flow_state)
         print(f"DEBUG: Extracted connections: {connections}")
         
-        # Validate all pending steps have required connections
+        # Validate all pending steps have required connections (skip seed steps)
         validation_errors = []
         for pending_step in st.session_state.pending_steps:
+            # Skip validation for seed steps - they don't need input connections
+            if pending_step['type'] == 'seed':
+                continue
+                
             step_name = pending_step['name']
             required_inputs = pending_step.get('input_requirements', {})
             step_connections = connections.get(step_name, {})
@@ -2095,7 +2155,14 @@ def execute_pending_steps():
             print(f"🧹 Cleaned connections: {step_connections} -> {cleaned_connections}")
             
             try:
-                if pending_step['type'] == 'llm':
+                if pending_step['type'] == 'seed' and pending_step.get('action') == 'upload_batch':
+                    # Handle seed step upload
+                    from lib.state_managment import upload_seed_step_batch
+                    result = upload_seed_step_batch(str(state_file_path), pending_step['step_name'])
+                    if not result:
+                        raise Exception("Failed to upload seed batch")
+                        
+                elif pending_step['type'] == 'llm':
                     use_llm_tool(
                         str(state_file_path),
                         pending_step['name'],
@@ -2379,7 +2446,6 @@ def create_single_data_nodes_from_state(state_data):
         single_data_nodes.append(single_node)
     
     return single_data_nodes
-print(" A RERUN OCCURRED ")
 # SIDEBAR - WORKFLOW ACTIONS AND MANAGEMENT
 with st.sidebar:
     st.header("🛠️ Workflow Manager")
@@ -2395,19 +2461,36 @@ with st.sidebar:
     st.subheader("📁 Load Existing Workflow")
     available_runs = get_available_runs()
     if available_runs:
+        current_workflow = st.session_state.get('current_workflow')
+        
+        # Show current workflow status
+        if current_workflow:
+            st.success(f"Current: **{current_workflow}**")
+        else:
+            st.info("No workflow loaded")
+        
+        # Simple workflow selection dropdown
         selected_workflow_sidebar = st.selectbox(
-            "Select Workflow:",
-            options=[None] + available_runs,
-            format_func=lambda x: "Choose a workflow..." if x is None else x,
+            "Available Workflows:",
+            options=available_runs,
             key="sidebar_workflow_select"
         )
         
-        if selected_workflow_sidebar and selected_workflow_sidebar != st.session_state.current_workflow:
-            if st.button("🔄 Load Selected", key="load_selected_btn", use_container_width=True):
-                state_data = load_workflow_state(selected_workflow_sidebar)
-                if state_data:
-                    set_message('success', f"✅ Loaded workflow: {selected_workflow_sidebar}")
+        # Load button with clear action
+        if st.button(f"🔄 Switch to: {selected_workflow_sidebar}", 
+                    key="load_selected_btn", 
+                    use_container_width=True,
+                    disabled=(selected_workflow_sidebar == current_workflow)):
+            
+            with st.spinner(f"Loading {selected_workflow_sidebar}..."):
+                success = switch_workflow_with_cleanup(selected_workflow_sidebar)
+                if success:
+                    st.success(f"✅ Switched to {selected_workflow_sidebar}")
+                    # Small delay to show success message
+                    time.sleep(0.5)
                     st.rerun()
+                else:
+                    st.error(f"❌ Failed to load {selected_workflow_sidebar}")
     else:
         st.info("No existing workflows found")
     
@@ -2813,7 +2896,7 @@ if st.session_state.current_workflow and st.session_state.flow_state:
     if st.session_state.get('show_seed_dialog', False):
         with st.expander("🌱 Start Seed Step", expanded=True):
             # Get available seed files
-            available_seed_files = get_available_seed_files()
+            available_seed_files = dir_manager.list_seed_files()
             st.markdown("### Choose Seed File Source")
 
             # Create tabs for different input methods
@@ -3005,20 +3088,40 @@ if st.session_state.current_workflow and st.session_state.flow_state:
 
     # Display pending steps
     if st.session_state.pending_steps:
-        st.subheader("⏳ Pending Steps")
-        st.info("💡 These steps are now visible in the diagram below. Connect the required inputs, then click 'Execute' to run them.")
+        st.subheader(f"⏳ Pending Steps ({len(st.session_state.pending_steps)})")
+        st.info("💡 These steps will be executed when you click 'Execute'. Seed steps will upload their batches, other steps need connections.")
         
         for i, pending_step in enumerate(st.session_state.pending_steps):
+            step_type = pending_step['type']
+            step_name = pending_step.get('step_name', pending_step.get('name', ''))
+            
             with st.container():
                 col1, col2, col3, col4 = st.columns([3, 3, 2, 1])
                 
                 with col1:
-                    st.write(f"**{pending_step['name']}**")
-                    st.caption(f"{pending_step['type'].upper()}: {pending_step['tool']}")
+                    # Enhanced step type display
+                    if step_type == 'seed':
+                        st.write(f"🌱 **{step_name}** - Seed Step")
+                        st.caption("Upload seed batch file")
+                    elif step_type == 'llm':
+                        st.write(f"🤖 **{step_name}** - LLM Tool")
+                        st.caption(f"{pending_step.get('tool', 'Unknown Tool')}")
+                    elif step_type == 'code':
+                        st.write(f"💻 **{step_name}** - Code Tool") 
+                        st.caption(f"{pending_step.get('tool', 'Unknown Tool')}")
+                    elif step_type == 'chip':
+                        st.write(f"🔧 **{step_name}** - Processing Chip")
+                        st.caption(f"{pending_step.get('tool', 'Unknown Tool')}")
+                    else:
+                        st.write(f"**{step_name}**")
+                        st.caption(f"{step_type.upper()}: {pending_step.get('tool', '')}")
                 
                 with col2:
-                    # Show required connections
-                    if pending_step.get('needs_connections'):
+                    # Show required connections (skip for seed steps)
+                    if step_type == 'seed':
+                        st.write("🌱 **Ready to upload batch**")
+                        st.caption("No connections needed")
+                    elif pending_step.get('needs_connections'):
                         st.write("🔌 **Needs Connections:**")
                         for req in pending_step['needs_connections']:
                             req_type = pending_step['input_requirements'][req]
@@ -3053,13 +3156,40 @@ if st.session_state.current_workflow and st.session_state.flow_state:
         
 else:
     st.info("👆 Please create a new workflow or load an existing one from the sidebar.")
-    # Show example workflows if any exist
+    # Show enhanced workflow selection if any exist
     available_runs = get_available_runs()
     if available_runs:
-        st.subheader("📁 Available Workflows")
-        for run in available_runs[:5]:  # Show first 5
-            if st.button(f"Load {run}", key=f"load_{run}"):
-                state_data = load_workflow_state(run)
-                if state_data:
-                    set_message('success', f"✅ Loaded workflow: {run}")
-                    st.rerun()
+        st.subheader("📁 Quick Load Workflow")
+        
+        col1, col2 = st.columns([3, 1])
+        
+        with col1:
+            selected_workflow_main = st.selectbox(
+                "Choose a workflow to load:",
+                options=available_runs,
+                key="main_workflow_select"
+            )
+        
+        with col2:
+            if st.button("🚀 Load", use_container_width=True, key="main_load_btn"):
+                with st.spinner(f"Loading {selected_workflow_main}..."):
+                    success = switch_workflow_with_cleanup(selected_workflow_main)
+                    if success:
+                        time.sleep(0.3)  # Brief delay to show success message
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to load {selected_workflow_main}")
+        
+        st.write("**Recent Workflows:**")
+        # Show quick buttons for first 3 workflows
+        cols = st.columns(min(len(available_runs), 3))
+        for i, run in enumerate(available_runs[:3]):
+            with cols[i]:
+                if st.button(f"📂 {run}", key=f"quick_load_{run}", use_container_width=True):
+                    with st.spinner(f"Loading {run}..."):
+                        success = switch_workflow_with_cleanup(run)
+                        if success:
+                            time.sleep(0.3)
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to load {run}")
