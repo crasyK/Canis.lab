@@ -1,64 +1,24 @@
 {
-  "timestamp": "2025-09-19T18:50:08.123364",
+  "timestamp": "2025-09-20T17:45:22.958473",
   "workflow_name": "Science-Chatbot",
   "positions": {
-    "1-parent-0": {
-      "position": {
-        "x": 0,
-        "y": 0
-      },
-      "data": {
-        "content": "seed",
-        "prev_pos": [
-          0,
-          0
-        ]
-      }
-    },
-    "1-out-1": {
-      "position": {
-        "x": 110,
-        "y": 50
-      },
-      "data": {
-        "content": "user_prompt"
-      }
-    },
-    "1-out-2": {
-      "position": {
-        "x": 110,
-        "y": 110
-      },
-      "data": {
-        "content": "system_prompt"
-      }
-    },
-    "1-out-3": {
-      "position": {
-        "x": 110,
-        "y": 170
-      },
-      "data": {
-        "content": "raw_seed_data"
-      }
-    },
     "2-parent-0": {
       "position": {
-        "x": 0,
-        "y": 0
+        "x": -57,
+        "y": 6
       },
       "data": {
         "content": "parsing",
         "prev_pos": [
-          0,
-          0
+          -57,
+          6
         ]
       }
     },
     "2-in-1": {
       "position": {
-        "x": -10,
-        "y": 50
+        "x": -67,
+        "y": 56
       },
       "data": {
         "content": "raw_seed_data"
@@ -66,8 +26,8 @@
     },
     "2-out-1": {
       "position": {
-        "x": 110,
-        "y": 50
+        "x": 53,
+        "y": 56
       },
       "data": {
         "content": "parsed_data"
@@ -75,21 +35,21 @@
     },
     "3-parent-0": {
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 175,
+        "y": 2.8000000000000256
       },
       "data": {
         "content": "Classify",
         "prev_pos": [
-          0,
-          0
+          175,
+          2.8000000000000256
         ]
       }
     },
     "3-in-1": {
       "position": {
-        "x": -10,
-        "y": 50
+        "x": 165,
+        "y": 52.800000000000026
       },
       "data": {
         "content": "parsed_data"
@@ -97,8 +57,8 @@
     },
     "3-out-1": {
       "position": {
-        "x": 110,
-        "y": 50
+        "x": 285,
+        "y": 52.800000000000026
       },
       "data": {
         "content": "EXCELLENT"
@@ -106,8 +66,8 @@
     },
     "3-out-2": {
       "position": {
-        "x": 110,
-        "y": 110
+        "x": 285,
+        "y": 112.80000000000003
       },
       "data": {
         "content": "GOOD"
@@ -115,8 +75,8 @@
     },
     "3-out-3": {
       "position": {
-        "x": 110,
-        "y": 170
+        "x": 285,
+        "y": 172.8
       },
       "data": {
         "content": "FAIR"
@@ -124,8 +84,8 @@
     },
     "3-out-4": {
       "position": {
-        "x": 110,
-        "y": 230
+        "x": 285,
+        "y": 232.8
       },
       "data": {
         "content": "POOR"
@@ -133,8 +93,8 @@
     },
     "3-out-5": {
       "position": {
-        "x": 110,
-        "y": 290
+        "x": 285,
+        "y": 292.8
       },
       "data": {
         "content": "REJECT"
@@ -142,21 +102,21 @@
     },
     "4-parent-0": {
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 404,
+        "y": 7.399999999999999
       },
       "data": {
         "content": "Result",
         "prev_pos": [
-          0,
-          0
+          404,
+          7.399999999999999
         ]
       }
     },
     "4-in-1": {
       "position": {
-        "x": -10,
-        "y": 50
+        "x": 394,
+        "y": 57.4
       },
       "data": {
         "content": "EXCELLENT"
@@ -164,8 +124,8 @@
     },
     "4-in-2": {
       "position": {
-        "x": -10,
-        "y": 110
+        "x": 394,
+        "y": 117.4
       },
       "data": {
         "content": "GOOD"
@@ -173,8 +133,8 @@
     },
     "4-out-1": {
       "position": {
-        "x": 110,
-        "y": 50
+        "x": 514,
+        "y": 57.4
       },
       "data": {
         "content": "combined_data"
@@ -182,21 +142,21 @@
     },
     "5-parent-0": {
       "position": {
-        "x": 0,
-        "y": 0
+        "x": 634,
+        "y": 5.600000000000001
       },
       "data": {
         "content": "Final",
         "prev_pos": [
-          0,
-          0
+          634,
+          5.600000000000001
         ]
       }
     },
     "5-in-1": {
       "position": {
-        "x": -10,
-        "y": 50
+        "x": 624,
+        "y": 55.6
       },
       "data": {
         "content": "combined_data"
@@ -204,48 +164,48 @@
     },
     "5-out-1": {
       "position": {
-        "x": 110,
-        "y": 50
+        "x": 744,
+        "y": 55.6
       },
       "data": {
         "content": "/home/m..."
       }
     },
-    "6-parent-0": {
+    "1-parent-0": {
       "position": {
-        "x": 0,
-        "y": 0
+        "x": -296.1018848764144,
+        "y": 8.316384697815078
       },
       "data": {
         "content": "seed",
         "prev_pos": [
-          0,
-          0
+          -296.1018848764144,
+          8.316384697815078
         ]
       }
     },
-    "6-out-1": {
+    "1-out-1": {
       "position": {
-        "x": 110,
-        "y": 50
+        "x": -186.10188487641437,
+        "y": 58.31638469781508
       },
       "data": {
         "content": "user_prompt"
       }
     },
-    "6-out-2": {
+    "1-out-2": {
       "position": {
-        "x": 110,
-        "y": 110
+        "x": -186.10188487641437,
+        "y": 118.31638469781508
       },
       "data": {
         "content": "system_prompt"
       }
     },
-    "6-out-3": {
+    "1-out-3": {
       "position": {
-        "x": 110,
-        "y": 170
+        "x": -186.10188487641437,
+        "y": 178.31638469781507
       },
       "data": {
         "content": "raw_seed_data"

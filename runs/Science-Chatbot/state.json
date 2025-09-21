@@ -1,6 +1,6 @@
 {
   "name": "Science-Chatbot",
-  "status": "running",
+  "status": "finalized",
   "nodes": [
     {
       "name": "system_prompt",
@@ -87,30 +87,6 @@
       "file_name": "runs\\concteach.science_20250902233018\\datasets\\finalized_20250905_130649",
       "type": "huggingface_dataset",
       "state": "created"
-    },
-    {
-      "name": "system_prompt",
-      "file_name": "runs\\Science-Chatbot\\data\\system_prompt.json",
-      "type": {
-        "str": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "user_prompt",
-      "file_name": "runs\\Science-Chatbot\\data\\user_prompt.json",
-      "type": {
-        "str": "data"
-      },
-      "state": "created"
-    },
-    {
-      "name": "raw_seed_data",
-      "file_name": "runs\\Science-Chatbot\\data\\raw_seed_data.json",
-      "type": {
-        "str": "data"
-      },
-      "state": "uploaded"
     }
   ],
   "state_steps": [
@@ -203,25 +179,6 @@
         }
       },
       "status": "completed"
-    },
-    {
-      "name": "seed",
-      "type": "llm",
-      "status": "uploaded",
-      "tool_name": "",
-      "batch": {
-        "in": "runs\\Science-Chatbot\\batch\\seed_batch.jsonl",
-        "upload_id": "batch_68cd9db8cd2c81908e1003b069268c53",
-        "out": "runs\\Science-Chatbot\\batch\\seed_results.jsonl"
-      },
-      "data": {
-        "in": {},
-        "out": {
-          "user_prompt": "runs\\Science-Chatbot\\data\\user_prompt.json",
-          "system_prompt": "runs\\Science-Chatbot\\data\\system_prompt.json",
-          "raw_seed_data": "runs\\Science-Chatbot\\data\\raw_seed_data.json"
-        }
-      }
     }
   ]
 }

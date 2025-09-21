@@ -227,33 +227,14 @@ Canis.lab leverages OpenAI's batch API for efficient processing:
 4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
+## License
 
-**Dual License: Non-Commercial + Commercial**
+This project is dual-licensed:
 
-### Non-Commercial Use
-This software is available under the Creative Commons Attribution-NonCommercial 4.0 International License for non-commercial use, including:
-- Academic research and education
-- Personal projects and learning
-- Open-source contributions
-- Non-profit organizations
+- **Non-commercial use**: See [LICENSE-NONCOMMERCIAL](LICENSE-NONCOMMERCIAL).
+- **Commercial use**: Requires a separate license. See [LICENSE-COMMERCIAL](LICENSE-COMMERCIAL) or contact nedilkomarko@gmail.com for terms.
 
-### Commercial Use  
-Commercial use, including but not limited to:
-- Selling the software or services based on it
-- Using it in revenue-generating applications
-- Incorporating it into commercial products
-- Offering it as a paid service (SaaS)
-
-Requires a separate commercial license. Contact nedilkomarko@gmail.com for commercial licensing terms.
-
-### Attribution Required
-All use (commercial and non-commercial) must include proper attribution to Canis.lab and its contributors.
-
----
-
-**Copyright (c) 2024 [Marko Nedilko]. All rights reserved.**
-
+By using this code, you agree to the terms of the appropriate license.
 
 ## 🆘 Support
 
