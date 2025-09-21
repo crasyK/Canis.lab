@@ -39,19 +39,25 @@ def download_batch_results(batch_id, result_file_name):
       file.write(result)
 
 def convert_batch_in_to_json_data(batch_file, input_sys_file, input_user_file):
-    with open(batch_file, 'r') as f:
-        batch = [json.loads(line) for line in f.readlines()]
+    if isinstance(batch_file, tuple) or isinstance(batch_file, list):
+        batch = [json.dumps(line) for line in batch_file]
+        batch = [json.loads(line) for line in batch]
+    else:
+        with open(batch_file, 'r') as f:
+            batch = [json.loads(line) for line in f.readlines()]
     
     input_data_A = {}
     input_data_B = {}
     for b in batch:
         input_data_A.update({
-            b["custom_id"]: b["body"]["input"][0]["content"]
+            int(b["custom_id"]): b["body"]["input"][0]["content"]
         })
         input_data_B.update({
-            b["custom_id"]: b["body"]["input"][1]["content"]
+            int(b["custom_id"]): b["body"]["input"][1]["content"]
         })
     
+    if input_sys_file is None or input_user_file is None:
+        return input_data_A, input_data_B
     with open(input_sys_file, 'w') as f:
         json.dump(input_data_A, f)
     

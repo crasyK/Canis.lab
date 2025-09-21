@@ -4,6 +4,7 @@ from typing import Callable, Any
 from lib.tools.code import execute_code_tool, save_code_tool_results
 from lib.tools.llm import generate_llm_tool_batch_file, get_available_llm_tools, get_tool_template
 from lib.tools.seed import generate_seed_batch_file
+from lib.tools.batch import convert_batch_in_to_json_data
 
 available_chips = {
     "Seed Data Generation": {
@@ -37,15 +38,14 @@ def get_available_chips():
 
 
 def start_seed_data_generation_chip(seed_file_location: str, batch_file_location: str):
-    print(seed_file_location, batch_file_location)
     generated_seed_data = generate_seed_batch_file(seed_file_location, batch_file_location)
     return get_available_chips()["Seed Data Generation"]["data_markers"]["out"]
 
 def finish_seed_data_generation_chip(seed_file_location: dict, batch_data: dict):
     generated_seed_data = generate_seed_batch_file(seed_file_location, None)
-    query_data = save_code_tool_results("SEED", generated_seed_data, None)
-    return {"generated_data": batch_data, "queries":query_data},
-    
+    queries, sys_prompts = convert_batch_in_to_json_data(generated_seed_data, None, None)
+    return {"generated_data": batch_data, "queries":queries}
+
 
 def start_classification_chip(classification_description: str, classification_list: list, data: dict, batch_file_location: str):
     expanded_descriptions = save_code_tool_results("expand",execute_code_tool("expand", {"single": classification_description, "data_to_adapt_to": data}),None)

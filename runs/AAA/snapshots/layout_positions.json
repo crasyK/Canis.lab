@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-21T10:56:41.246466",
+  "timestamp": "2025-09-21T10:58:09.747479",
   "workflow_name": "AAA",
   "positions": {
     "1-parent-0": {
@@ -54,21 +54,6 @@
         ]
       }
     },
-    "single-seed_file_location_data": {
-      "position": {
-        "x": 148.71424260419755,
-        "y": -193.9490779769438
-      },
-      "data": {
-        "content": "C:\\User...",
-        "full_name": "seed_file_location_data",
-        "data_type": "file",
-        "value": "seed_files\\science_chatbot.json",
-        "is_single_data": true,
-        "marker_name": "seed_file_location_data",
-        "file_path": "seed_files\\science_chatbot.json"
-      }
-    },
     "2-parent-0": {
       "position": {
         "x": 307.4180765109248,
@@ -88,7 +73,11 @@
         "y": -95.62146013714371
       },
       "data": {
-        "content": "seed_file_location_data"
+        "content": "seed_file_location_data",
+        "prev_pos": [
+          297.4180765109248,
+          -95.62146013714371
+        ]
       }
     },
     "2-out-1": {
@@ -97,7 +86,11 @@
         "y": -95.62146013714371
       },
       "data": {
-        "content": "Seed2_generated_data"
+        "content": "Seed2_generated_data",
+        "prev_pos": [
+          417.4180765109248,
+          -95.62146013714371
+        ]
       }
     },
     "2-out-2": {
@@ -106,7 +99,30 @@
         "y": -35.621460137143714
       },
       "data": {
-        "content": "Seed2_queries"
+        "content": "Seed2_queries",
+        "prev_pos": [
+          417.4180765109248,
+          -35.621460137143714
+        ]
+      }
+    },
+    "single-seed_file_location_data": {
+      "position": {
+        "x": 148.71424260419755,
+        "y": -193.9490779769438
+      },
+      "data": {
+        "content": "C:\\User...",
+        "full_name": "seed_file_location_data",
+        "data_type": "file",
+        "value": "seed_files\\science_chatbot.json",
+        "is_single_data": true,
+        "marker_name": "seed_file_location_data",
+        "file_path": "seed_files\\science_chatbot.json",
+        "prev_pos": [
+          148.71424260419755,
+          -193.9490779769438
+        ]
       }
     }
   }

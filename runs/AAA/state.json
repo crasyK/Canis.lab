@@ -1,6 +1,6 @@
 {
   "name": "AAA",
-  "status": "running_chip",
+  "status": "completed",
   "nodes": [
     {
       "name": "system_prompt",
@@ -44,7 +44,7 @@
       "type": {
         "json": "data"
       },
-      "state": "uploaded"
+      "state": "completed"
     },
     {
       "name": "Seed2_queries",
@@ -52,7 +52,7 @@
       "type": {
         "json": "data"
       },
-      "state": "uploaded"
+      "state": "completed"
     }
   ],
   "state_steps": [
@@ -78,7 +78,7 @@
     {
       "name": "Seed2",
       "type": "chip",
-      "status": "uploaded",
+      "status": "completed",
       "tool_name": "Seed Data Generation",
       "batch": {
         "in": "runs\\AAA\\batch\\Seed2_batch.jsonl",

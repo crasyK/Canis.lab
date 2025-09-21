@@ -644,10 +644,12 @@ def complete_running_step(state_file):
             save_chip_results(last_step["tool_name"], final_data, last_step["data"]["out"])
             # update output markers
             for output_marker_name, data in last_step["data"]["out"].items():
+                #output_marker_name = last_step["name"] + "_" + output_marker_name
                 current_marker = (next(d for d in relevant_markers if d['name'] == output_marker_name))
                 current_marker["state"] = status_step
                 (next(d for d in state["nodes"] if d['name'] == current_marker['name'])).update(current_marker)
             last_step["status"] = status_step
+            print("Chip processing completed")
         else:
             output_marker = get_uploaded_markers(state_file)[-1]
             # Convert batch output to JSON data
@@ -844,11 +846,12 @@ def use_chip(state_file, custom_name, chip_name, reference_dict, test_mode=False
     # Handle multiple output markers properly
     output_paths = {}
     for key, value in output_markers.items():
-        data_output_path = dir_manager.get_data_file_path(workflow_name, f"{new_step['name']}_{key}", "extracted")
-        output_paths[key] = str(data_output_path)
-        
+        new_name = new_step['name'] + "_" + key
+        data_output_path = dir_manager.get_data_file_path(workflow_name, new_name, "extracted")
+        output_paths[new_name] = str(data_output_path)
+
         # Create each marker
-        state["nodes"].append(create_markers(str(new_step['name'] + "_" + key), output_paths[key], value, "uploaded"))
+        state["nodes"].append(create_markers(new_name, output_paths[new_name], value, "uploaded"))
 
     new_step["data"]["out"] = output_paths
     new_step["batch"]["out"] = str(dir_manager.get_batch_dir(workflow_name) / f"{new_step['name']}_results.jsonl")

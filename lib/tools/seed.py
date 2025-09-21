@@ -259,7 +259,6 @@ def generate_seed_batch_file(json_file: str, file_to_save: str = None) -> List[D
         with open(file_to_save, "w") as out:
             for t in tasks:
                 out.write(json.dumps(t, ensure_ascii=False) + "\n")
-
     return tasks
 
 # Example usage demonstrating depth control
