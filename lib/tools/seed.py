@@ -209,8 +209,11 @@ def generate_seed_batch_file(json_file: str, file_to_save: str = None) -> List[D
     3. Proper distinction between nested paths (A.C.1 vs A.D.1)
     4. Consistent key/value pairing across all nesting levels
     """
-    with open(json_file, "r") as f:
-        data = json.load(f)
+    if isinstance(json_file, dict):
+        data = json_file
+    else:
+        with open(json_file, "r") as f:
+            data = json.load(f)
 
     constants = data.get("constants", {})
     variables = data.get("variables", {})

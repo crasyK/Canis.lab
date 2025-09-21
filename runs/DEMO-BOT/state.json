@@ -25,6 +25,18 @@
         "str": "data"
       },
       "state": "completed"
+    },
+    {
+      "name": "seed_file_location_data",
+      "file_name": "seed_files\\science_chatbot.json",
+      "type": {
+        "file": "single"
+      },
+      "state": "single_data",
+      "display_name": "C:\\User...",
+      "created_at": "2025-09-21T10:32:35.298049",
+      "data_type": "file",
+      "is_single_data": true
     }
   ],
   "state_steps": [

@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-09-19T18:50:06.841660",
+  "timestamp": "2025-09-21T10:56:41.246466",
   "workflow_name": "AAA",
   "positions": {
     "1-parent-0": {
@@ -21,7 +21,11 @@
         "y": 50
       },
       "data": {
-        "content": "user_prompt"
+        "content": "user_prompt",
+        "prev_pos": [
+          110,
+          50
+        ]
       }
     },
     "1-out-2": {
@@ -30,7 +34,11 @@
         "y": 110
       },
       "data": {
-        "content": "system_prompt"
+        "content": "system_prompt",
+        "prev_pos": [
+          110,
+          110
+        ]
       }
     },
     "1-out-3": {
@@ -39,7 +47,66 @@
         "y": 170
       },
       "data": {
-        "content": "raw_seed_data"
+        "content": "raw_seed_data",
+        "prev_pos": [
+          110,
+          170
+        ]
+      }
+    },
+    "single-seed_file_location_data": {
+      "position": {
+        "x": 148.71424260419755,
+        "y": -193.9490779769438
+      },
+      "data": {
+        "content": "C:\\User...",
+        "full_name": "seed_file_location_data",
+        "data_type": "file",
+        "value": "seed_files\\science_chatbot.json",
+        "is_single_data": true,
+        "marker_name": "seed_file_location_data",
+        "file_path": "seed_files\\science_chatbot.json"
+      }
+    },
+    "2-parent-0": {
+      "position": {
+        "x": 307.4180765109248,
+        "y": -145.6214601371437
+      },
+      "data": {
+        "content": "Seed2",
+        "prev_pos": [
+          307.4180765109248,
+          -145.6214601371437
+        ]
+      }
+    },
+    "2-in-1": {
+      "position": {
+        "x": 297.4180765109248,
+        "y": -95.62146013714371
+      },
+      "data": {
+        "content": "seed_file_location_data"
+      }
+    },
+    "2-out-1": {
+      "position": {
+        "x": 417.4180765109248,
+        "y": -95.62146013714371
+      },
+      "data": {
+        "content": "Seed2_generated_data"
+      }
+    },
+    "2-out-2": {
+      "position": {
+        "x": 417.4180765109248,
+        "y": -35.621460137143714
+      },
+      "data": {
+        "content": "Seed2_queries"
       }
     }
   }
