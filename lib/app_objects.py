@@ -39,7 +39,7 @@ class ThemeManager:
             'string_data': '#4DB6AC',
             'list_data': '#BA68C8',
             'integer_data': '#81C784',
-            'file_data': '#FAFAFA',
+            'file_data': "#FAFAFA78",
             'single_data': '#424242',
             'huggingface_data': '#424242',
             
