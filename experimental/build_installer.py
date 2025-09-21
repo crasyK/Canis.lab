@@ -8,7 +8,7 @@ import os
 import zipfile
 
 # --- Configuration ---
-INSTALLER_SCRIPT = "canis_lab_installer_fixed.py"
+INSTALLER_SCRIPT = "canis_lab_installer.py"
 ICON_PNG = "icon.png"
 ICON_ICO = "icon.ico"
 APP_NAME = "CanisLab_Installer"

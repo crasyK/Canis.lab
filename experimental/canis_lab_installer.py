@@ -8,28 +8,283 @@ import tempfile
 import shutil
 from pathlib import Path
 
+import stat
+
+def find_system_python():
+    """
+    Return (python_cmd_list, python_exe_path) usable to run modules, or (None, None).
+    On Windows, tries: py -3, py, python, python3. Else: python3, python.
+    """
+    candidates = []
+    if platform.system() == 'Windows':
+        candidates = [
+            ['py', '-3'],
+            ['py'],
+            ['python'],
+            ['python3'],
+        ]
+    else:
+        candidates = [
+            ['python3'],
+            ['python'],
+        ]
+
+    for cmd in candidates:
+        try:
+            ok, out, err = run_with_timeout(cmd + ['-c', 'import sys; print(sys.executable)'], timeout_seconds=10)
+            if ok and out.strip():
+                return cmd, out.strip()
+        except Exception:
+            pass
+    return None, None
+
+
+def _remove_readonly(func, path, excinfo):
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+def safe_rmtree(path: Path):
+    if path.exists():
+        try:
+            shutil.rmtree(path, onerror=_remove_readonly)
+        except Exception:
+            if platform.system() == 'Windows':
+                try:
+                    subprocess.run([
+                        'powershell', '-NoProfile', '-Command',
+                        f"Remove-Item -Recurse -Force -LiteralPath '{str(path)}'"
+                    ], check=False)
+                except Exception:
+                    pass
+
+def _valid_python(exe_path):
+    try:
+        ok, out, err = run_with_timeout([exe_path, '-c', 'import sys; print(sys.version)'], timeout_seconds=10)
+        return ok
+    except Exception:
+        return False
+
+def _pick_highest(paths):
+    # crude but effective: prefer higher major.minor in the path string
+    def version_key(p):
+        import re
+        m = re.search(r'python(\\d{2,3})', p.replace('.', ''))
+        return int(m.group(1)) if m else 0
+    return sorted(paths, key=version_key, reverse=True)
+
+def find_system_python():
+    """
+    Find a real system Python for venv creation when running as a frozen EXE.
+    Strategy:
+    1) py -0p (list all) or py -3 (direct)
+    2) python/python3 on PATH
+    3) Windows registry (PythonCore) + common install paths
+    4) Prompt user for python.exe
+    Returns: (cmd_list, python_exe_path) or (None, None)
+    """
+    candidates_cmds = []
+    paths = []
+
+    if platform.system() == 'Windows':
+        # 1) Python Launcher discovery
+        try:
+            ok, out, err = run_with_timeout(['py', '-0p'], timeout_seconds=10)
+            if ok and out.strip():
+                for line in out.splitlines():
+                    p = line.strip()
+                    if p.lower().endswith('python.exe') and os.path.exists(p):
+                        paths.append(p)
+        except Exception:
+            pass
+
+        # Also try direct py -3
+        try:
+            ok, out, err = run_with_timeout(['py', '-3', '-c', 'import sys; print(sys.executable)'], timeout_seconds=10)
+            if ok and out.strip():
+                p = out.strip()
+                if os.path.exists(p):
+                    paths.append(p)
+        except Exception:
+            pass
+
+        # 2) Try python/python3 from PATH
+        for name in ['python', 'python3']:
+            try:
+                ok, out, err = run_with_timeout([name, '-c', 'import sys; print(sys.executable)'], timeout_seconds=10)
+                if ok and out.strip():
+                    p = out.strip()
+                    if os.path.exists(p):
+                        paths.append(p)
+            except Exception:
+                pass
+
+        # 3) Windows registry + common directories
+        try:
+            import winreg as wr
+            for hive in (wr.HKEY_CURRENT_USER, wr.HKEY_LOCAL_MACHINE):
+                for root in (r"Software\\Python\\PythonCore", r"Software\\Wow6432Node\\Python\\PythonCore"):
+                    try:
+                        with wr.OpenKey(hive, root) as k:
+                            i = 0
+                            while True:
+                                try:
+                                    ver = wr.EnumKey(k, i)
+                                    i += 1
+                                except OSError:
+                                    break
+                                try:
+                                    with wr.OpenKey(k, ver + r"\\InstallPath") as ip:
+                                        val, _ = wr.QueryValueEx(ip, None)
+                                        exe = os.path.join(val, 'python.exe')
+                                        if os.path.exists(exe):
+                                            paths.append(exe)
+                                except OSError:
+                                    continue
+                    except OSError:
+                        continue
+        except Exception:
+            pass
+
+        # Common install dirs
+        env = os.environ
+        guesses = []
+        for base in [
+            env.get('LOCALAPPDATA', ''),
+            env.get('PROGRAMFILES', ''),
+            env.get('PROGRAMFILES(X86)', ''),
+            'C:\\\\Python311', 'C:\\\\Python312', 'C:\\\\Python310', 'C:\\\\Python39',
+        ]:
+            if not base:
+                continue
+            guesses.extend([
+                os.path.join(base, 'Programs', 'Python', 'Python312', 'python.exe'),
+                os.path.join(base, 'Programs', 'Python', 'Python311', 'python.exe'),
+                os.path.join(base, 'Programs', 'Python', 'Python310', 'python.exe'),
+                os.path.join(base, 'Programs', 'Python', 'Python39', 'python.exe'),
+            ])
+        for g in guesses:
+            if os.path.exists(g):
+                paths.append(g)
+
+        # Deduplicate & validate
+        uniq = []
+        for p in _pick_highest(list(dict.fromkeys(paths))):
+            if _valid_python(p):
+                uniq.append(p)
+
+        if uniq:
+            best = uniq[0]
+            return [best], best
+
+        # 4) Prompt as last resort
+        print_warning("Could not find a system Python automatically.")
+        manual = input("Enter full path to python.exe (or press Enter to cancel): ").strip().strip('\"')
+        if manual and os.path.exists(manual) and _valid_python(manual):
+            return [manual], manual
+        return None, None
+
+    else:
+        # Non-Windows: try python3/python
+        for name in ['python3', 'python']:
+            try:
+                ok, out, err = run_with_timeout([name, '-c', 'import sys; print(sys.executable)'], timeout_seconds=10)
+                if ok and out.strip():
+                    p = out.strip()
+                    if os.path.exists(p):
+                        return [name], p
+            except Exception:
+                pass
+        return None, None
+
+
+
+# --- Python interpreter discovery when running as a frozen EXE ---
+def find_system_python():
+    candidates = []
+    if platform.system() == 'Windows':
+        candidates = [
+            ['py', '-3'],
+            ['py'],
+            ['python'],
+            ['python3'],
+        ]
+    else:
+        candidates = [
+            ['python3'],
+            ['python'],
+        ]
+    for cmd in candidates:
+        try:
+            success, stdout, stderr = run_with_timeout(cmd + ['-c', 'import sys; print(sys.executable)'], timeout_seconds=10)
+            if success and stdout.strip():
+                return cmd, stdout.strip()
+        except Exception:
+            pass
+    return None, None
+
+
+import stat
+
+def _remove_readonly(func, path, excinfo):
+    try:
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+    except Exception:
+        pass
+
+def safe_rmtree(path: Path):
+    if path.exists():
+        try:
+            shutil.rmtree(path, onerror=_remove_readonly)
+        except Exception:
+            # Fallback: attempt PowerShell removal on Windows
+            if platform.system() == 'Windows':
+                try:
+                    subprocess.run([
+                        'powershell', '-NoProfile', '-Command', f"Remove-Item -Recurse -Force -LiteralPath '{str(path)}'"
+                    ], check=False)
+                except Exception:
+                    pass
+
+
 # --- Configuration ---
 APP_NAME = "Canis.lab"
 REPO_URL = "https://github.com/crasyK/Canis.lab"
 ICON_URL_PNG = f"{REPO_URL}/raw/main/icon.png"
-ICON_URL_ICO = f"{REPO_URL}/raw/main/icon.ico"
+ICON_URL_ICO = f"{REPO_URL}/raw/main/Icon.ico"
 
 # --- Helper Functions ---
-
 def print_header(text):
-    """Prints a formatted header."""
-    print(f"\n{'='*60}\n {text}\n{'='*60}")
+    line = '='*60
+    print(f"\n{line}\n {text}\n{line}")
+
+def _supports_unicode():
+    try:
+        enc = (sys.stdout and sys.stdout.encoding) or ''
+        return 'utf' in enc.lower()
+    except Exception:
+        return False
+
+_UNICODE_OK = _supports_unicode()
+
+def _decorate(prefix_unicode, prefix_ascii, text):
+    prefix = prefix_unicode if _UNICODE_OK else prefix_ascii
+    return f"{prefix} {text}"
 
 def print_success(text):
-    print(f"✅ {text}")
+    print(_decorate('✅', '[OK]', text))
 
 def print_warning(text):
-    print(f"⚠️  {text}")
+    print(_decorate('⚠️', '[!]', text))
 
 def print_error(text, exit_code=1):
-    print(f"❌ ERROR: {text}")
+    print(_decorate('❌', 'ERROR:', text))
     if exit_code is not None:
         sys.exit(exit_code)
+
 
 def get_install_path():
     """Prompts the user for an installation path."""
@@ -78,63 +333,65 @@ def run_with_timeout(command, timeout_seconds=30, cwd=None):
         return False, "", str(e)
 
 def check_tool_available(tool_name, command):
-    """Check if a tool is available."""
-    success, stdout, stderr = run_with_timeout(command, timeout_seconds=5)
-    return success
+    """Check if a tool/command is available in PATH and responsive."""
+    try:
+        success, stdout, stderr = run_with_timeout(command, timeout_seconds=10)
+        return success
+    except FileNotFoundError:
+        return False
 
 def create_virtual_environment(install_path):
-    """Creates a Python virtual environment using the best available tool."""
+    """Creates a Python virtual environment, robust on Windows and when frozen."""
     venv_path = install_path / ".venv"
     print(f"🐍 Setting up Python environment in '{venv_path}'...")
-    
-    # Remove existing venv if it exists
+
+    # Clean any previous venv safely (Windows can lock files)
     if venv_path.exists():
         print("   Removing existing virtual environment...")
-        shutil.rmtree(venv_path)
-    
-    # Define virtual environment creation methods in order of preference
-    venv_methods = [
-        {
-            "name": "virtualenv",
-            "check_cmd": ["virtualenv", "--version"],
-            "install_cmd": [sys.executable, "-m", "pip", "install", "virtualenv"],
-            "create_cmd": ["virtualenv", str(venv_path)],
-            "description": "virtualenv (most reliable)"
-        },
-        {
-            "name": "python3-venv",
-            "check_cmd": ["python3", "-m", "venv", "--help"],
-            "install_cmd": None,
-            "create_cmd": ["python3", "-m", "venv", str(venv_path)],
-            "description": "python3 -m venv"
-        },
-        {
-            "name": "venv",
-            "check_cmd": [sys.executable, "-m", "venv", "--help"],
-            "install_cmd": None,
-            "create_cmd": [sys.executable, "-m", "venv", str(venv_path)],
-            "description": "built-in venv module"
-        },
-        {
-            "name": "pipenv",
-            "check_cmd": ["pipenv", "--version"],
-            "install_cmd": [sys.executable, "-m", "pip", "install", "pipenv"],
-            "create_cmd": ["pipenv", "install", "--python", sys.executable],
-            "description": "pipenv (creates .venv automatically)",
-            "special": "pipenv"
-        }
-    ]
-    
+        try:
+            safe_rmtree(venv_path)
+        except Exception:
+            pass
+
+    # Decide which Python to use
+    if getattr(sys, 'frozen', False):
+        # Running as a PyInstaller EXE -> find a real system Python
+        python_cmd, python_exe = find_system_python()
+        if not python_cmd:
+            print_error("No system Python interpreter found. Please install Python 3.9+ and ensure 'py' or 'python' is on PATH.")
+    else:
+        # Running as a script -> use the current interpreter
+        python_cmd = [sys.executable]
+        python_exe = sys.executable
+
+    # Make sure the external interpreter has pip
+    run_with_timeout(python_cmd + ['-m', 'ensurepip', '--upgrade'], timeout_seconds=120)
+    run_with_timeout(python_cmd + ['-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'], timeout_seconds=300)
+
+    # Build method list using that interpreter; avoid bare 'virtualenv' binary
+    methods = []
+    methods.append({
+        'name': 'venv',
+        'check_cmd': python_cmd + ['-m', 'venv', '--help'],
+        'install_cmd': None,
+        'create_cmd': python_cmd + ['-m', 'venv', str(venv_path)],
+        'description': 'built-in venv module'
+    })
+    methods.append({
+        'name': 'virtualenv',
+        'check_cmd': python_cmd + ['-m', 'virtualenv', '--version'],
+        'install_cmd': python_cmd + ['-m', 'pip', 'install', 'virtualenv'],
+        'create_cmd': python_cmd + ['-m', 'virtualenv', '-p', python_exe, str(venv_path)],
+        'description': 'virtualenv (fallback)'
+    })
+
     print("   Checking available virtual environment tools...")
-    
-    for method in venv_methods:
+    for method in methods:
         print(f"   Trying {method['description']}...")
-        
-        # Check if tool is available
         if not check_tool_available(method['name'], method['check_cmd']):
-            if method['install_cmd']:
+            if method.get('install_cmd'):
                 print(f"     {method['name']} not found, attempting to install...")
-                success, stdout, stderr = run_with_timeout(method['install_cmd'], timeout_seconds=60)
+                success, stdout, stderr = run_with_timeout(method['install_cmd'], timeout_seconds=600)
                 if not success:
                     print(f"     Failed to install {method['name']}: {stderr}")
                     continue
@@ -142,60 +399,50 @@ def create_virtual_environment(install_path):
             else:
                 print(f"     {method['name']} not available")
                 continue
-        
-        # Try to create virtual environment
+
+        # Try to create venv
         print(f"     Creating virtual environment with {method['name']}...")
-        
-        if method.get('special') == 'pipenv':
-            # Special handling for pipenv
-            success, stdout, stderr = run_with_timeout(method['create_cmd'], timeout_seconds=120, cwd=install_path)
-            if success:
-                # pipenv creates .venv in a different location, let's find it
-                success2, venv_location, stderr2 = run_with_timeout(["pipenv", "--venv"], timeout_seconds=10, cwd=install_path)
-                if success2:
-                    actual_venv_path = Path(venv_location.strip())
-                    if actual_venv_path.exists():
-                        # Create a symlink to the expected location
-                        try:
-                            venv_path.symlink_to(actual_venv_path)
-                            print_success(f"Virtual environment created with {method['name']}")
-                            return venv_path
-                        except:
-                            print_warning(f"pipenv created venv but couldn't create symlink")
-        else:
-            # Standard virtual environment creation
-            success, stdout, stderr = run_with_timeout(method['create_cmd'], timeout_seconds=60, cwd=install_path)
-            
-            if success and venv_path.exists():
-                # Verify we can find a Python executable
-                python_exe = find_venv_python(venv_path)
-                if python_exe:
-                    print_success(f"Virtual environment created with {method['name']}")
-                    return venv_path
-                else:
-                    print_warning(f"{method['name']} created directory but Python executable not accessible")
-                    if venv_path.exists():
-                        shutil.rmtree(venv_path)
-            else:
-                print_warning(f"{method['name']} failed: {stderr}")
-                if venv_path.exists():
-                    shutil.rmtree(venv_path)
-    
-    # If all methods failed, ask user what to do
-    print_warning("Could not create virtual environment with any available tool.")
+        success, stdout, stderr = run_with_timeout(method['create_cmd'], timeout_seconds=900, cwd=install_path)
+        if not success:
+            print_warning(f"{method['name']} failed to create venv: {stderr}")
+            try:
+                safe_rmtree(venv_path)
+            except Exception:
+                pass
+            continue
+
+        # Find Python inside venv
+        python_in_venv = find_venv_python(venv_path)
+        if not python_in_venv:
+            print_warning(f"{method['name']} created directory but Python executable not found")
+            try:
+                safe_rmtree(venv_path)
+            except Exception:
+                pass
+            continue
+
+        # Ensure pip is available in the venv and up to date
+        print("     Ensuring pip/setuptools/wheel are available...")
+        run_with_timeout([str(python_in_venv), '-m', 'ensurepip', '--upgrade'], timeout_seconds=240)
+        ok2, so2, se2 = run_with_timeout([str(python_in_venv), '-m', 'pip', 'install', '--upgrade', 'pip', 'setuptools', 'wheel'], timeout_seconds=600)
+        if not ok2:
+            print_warning("Could not upgrade pip/setuptools/wheel; continuing anyway.")
+
+        print_success(f"Virtual environment created with {method['name']}")
+        return venv_path
+
+    # If all methods failed
+    print_warning("Could not create a virtual environment automatically.")
     print("\nOptions:")
-    print("1. Install dependencies globally (may cause conflicts)")
-    print("2. Exit and install virtualenv manually")
-    
+    print("1. Exit and set up Python/venv manually, then rerun installer")
+    print("2. Attempt global dependency install (not recommended)")
     choice = input("Choose option (1 or 2): ").strip()
-    if choice == "1":
-        print_warning("Will install dependencies globally. This may cause conflicts with other Python projects.")
+    if choice == '2':
+        print_warning("Will install dependencies globally. This may cause conflicts.")
         return None
     else:
-        print("Please install virtualenv manually and run the installer again:")
-        print("  sudo apt-get install python3-venv  # On Ubuntu/Debian")
-        print("  pip install virtualenv             # Alternative method")
         sys.exit(1)
+
 
 def find_venv_python(venv_path):
     """Finds the Python executable in the virtual environment."""
@@ -370,9 +617,9 @@ def create_run_scripts_and_shortcut(install_path, has_venv):
             script_content = f"""@echo off
 echo Activating virtual environment and starting {APP_NAME}...
 cd /D "%~dp0"
-call .venv\\Scripts\\activate
+call .venv\\Scripts\\activate.bat
 echo Launching Streamlit...
-streamlit run app.py
+python -m python -m streamlit run app.py
 pause
 """
         else:
@@ -380,7 +627,7 @@ pause
 echo Starting {APP_NAME}...
 cd /D "%~dp0"
 echo Launching Streamlit...
-streamlit run app.py
+python -m python -m streamlit run app.py
 pause
 """
     else:  # Linux & macOS
@@ -392,13 +639,13 @@ echo "Activating virtual environment and starting {APP_NAME}..."
 # Use . instead of source for broader shell compatibility
 . .venv/bin/activate
 echo "Launching Streamlit..."
-streamlit run app.py
+python -m python -m streamlit run app.py
 """
         else:
             script_content = f"""#!/bin/bash
 cd "$(dirname "$0")"
 echo "Starting {APP_NAME}..."
-streamlit run app.py
+python -m python -m streamlit run app.py
 """
     
     script_path = install_path / script_name
